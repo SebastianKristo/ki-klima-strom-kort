@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.0.0";
+const KI_PRO_VERSJON = "1.0.1";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -293,7 +293,7 @@ class KiKlimaProCard extends HTMLElement {
     this._hass = hass;
     if (!this._bygd) this._bygg();
     let sig = this._fane + "|" + (this._underfane || "") + "|";
-    for (const id of this._fulgt.concat(this._personEntiteter())) sig += ((hass.states[mapId(id)] || {}).state || "-") + ",";
+    for (const id of [...this._fulgt, ...this._personEntiteter()]) sig += ((hass.states[mapId(id)] || {}).state || "-") + ",";
     if (sig !== this._sig) {
       this._sig = sig;
       // Står markøren i et inputfelt (klokkeslett), venter vi med å tegne på nytt til feltet

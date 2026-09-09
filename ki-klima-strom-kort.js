@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.0.1";
+const KI_PRO_VERSJON = "1.1.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -392,7 +392,7 @@ class KiKlimaProCard extends HTMLElement {
       "input_number.ki_gardin_slutt_maned", "input_datetime.ki_gardin_apne_tidligst", "input_datetime.ki_gardin_lukk_senest",
       "sensor.ki_nettleie", "input_text.ki_tariff_tabell", "input_number.ki_mal_trinn_kw", "input_number.ki_reserve_topp_kwh",
       "input_boolean.ki_tillat_dyrere_trinn",
-      "input_boolean.ki_elbil_natt", "input_number.ki_elbil_effekt_kw", "input_datetime.ki_elbil_fra", "input_datetime.ki_elbil_til",
+      "input_boolean.ki_elbil_natt", "input_boolean.ki_auto_soveromsmodus", "input_number.ki_elbil_effekt_kw", "input_datetime.ki_elbil_fra", "input_datetime.ki_elbil_til",
       "input_boolean.ki_vindu_stopp", "input_number.ki_vindu_forsinkelse_min", "input_number.ki_vindu_temp",
       "input_boolean.ki_helg_spor_torsdag", "input_boolean.ki_helg_spor_fredag",
       "input_boolean.ki_varsel_effekt", "input_boolean.ki_varsel_helg", "input_boolean.ki_varsel_hjemkomst",
@@ -483,6 +483,8 @@ class KiKlimaProCard extends HTMLElement {
   // Følg personenes hjelpere dynamisk (de heter time.ki_<key>_… og switch.ki_<key>_ferie)
   _personEntiteter() {
     const ut = [];
+    // søvnsensorer per person (binary_sensor.<key>_sover) så «sover (registrert)» oppdateres straks
+    this._personer.forEach((p) => { if (p.type !== "voksen") ut.push(`binary_sensor.${p.key}_sover`); });
     // fysiske brytere kortet viser direkte
     ["sensor.ki_hanklevarmer", "sensor.ki_bereder"].forEach((sid) => { const b = this._a(sid, "bryter", ""); if (b) ut.push(b); });
     this._personer.forEach((p) => {
@@ -1411,6 +1413,7 @@ class KiKlimaProCard extends HTMLElement {
         ["input_boolean.ki_skyggemodus", "Skyggemodus", "Regner og logger, styrer ingenting", "skyggemodus"],
         ["input_boolean.ki_dynamisk_grense", "Dynamisk grense", "Regner mot snittet av tre topper"],
         ["input_boolean.ki_laering_tau", "Lær tidskonstanter", "Måler hvor fort hver sone varmer og kjøler"],
+        ["input_boolean.ki_auto_soveromsmodus", "Automatisk soveromsmodus", "Søvnsensor (KI Søvn) styrer natt-temperaturen — sover = senk nå, våken = hold dag til hen sovner"],
       ]],
       ["Varme og komfort", [
         ["input_boolean.ki_prediktiv_forvarming", "Prediktiv forvarming", "Starter ut fra målt oppvarmingsrate"],

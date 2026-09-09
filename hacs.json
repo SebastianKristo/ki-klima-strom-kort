@@ -1,0 +1,6 @@
+{
+  "name": "KI Klima Strøm-kort",
+  "render_readme": true,
+  "filename": "ki-klima-strom-kort.js",
+  "homeassistant": "2024.12.0"
+}

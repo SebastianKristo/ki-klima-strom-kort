@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.1.0";
+const KI_PRO_VERSJON = "1.2.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -136,7 +136,7 @@ const HODE_IKON = {
   "Beslutningslogg": "mdi:text-box-outline", "Tarifftabell": "mdi:table", "Motor": "mdi:engine", "Varme og komfort": "mdi:radiator",
   "Helg og sommer": "mdi:calendar-weekend", "Vann og bad": "mdi:shower", "Varslinger": "mdi:bell-ring-outline",
   "Dag og natt": "mdi:theme-light-dark", "Cybele": "mdi:account", "Sebastian": "mdi:account-school", "Stue og vindu": "mdi:sofa",
-  "Leggetid": "mdi:bed", "Elbil": "mdi:ev-station",
+  "Leggetid": "mdi:bed", "Elbil": "mdi:ev-station", "KI sparer": "mdi:piggy-bank-outline",
 };
 
 const HJELP = {
@@ -404,7 +404,7 @@ class KiKlimaProCard extends HTMLElement {
       "input_number.ki_sone_gul", "input_number.ki_sone_oransje", "input_number.ki_sone_rod",
       "input_number.ki_reserve_frokost_kwh", "input_number.ki_reserve_middag_kwh",
       "input_number.ki_gardin_start_maned",
-      "input_number.ki_gardin_slutt_maned", "input_number.ki_hanklevarmer_maks_pa_tid",
+      "input_number.ki_gardin_slutt_maned", "input_number.ki_hanklevarmer_maks_pa_tid", "input_number.ki_hanklevarmer_effekt_w",
       "input_number.ki_vvb_metning_terskel_w", "input_number.ki_vvb_maks_min_uten_effekt",
       "input_number.ki_vvb_maks_oppvarming_min", "input_number.ki_vvb_maks_dager",
       "input_number.ki_vvb_intervall_dager", "input_number.vvb_billigste_timer_dogn",
@@ -1066,6 +1066,15 @@ class KiKlimaProCard extends HTMLElement {
           Sikkerhetsavstengingen slår inn ved ${nf(maks, 0)} minutter.</div>` : ""}
       </div>
       <div class="blokk">
+        <div class="hode"><span>KI sparer</span><span class="sub">${nf(Number(a("spart_kr_maned", 0)), 0)} kr denne måneden</span></div>
+        <div class="tallrad">
+          <div class="tall"><b>${nf(Number(a("spart_kwh_i_dag", 0)), 2)}</b><span>kWh spart i dag</span></div>
+          <div class="tall"><b>${nf(Number(a("spart_kr_maned", 0)), 0)} kr</b><span>spart denne måneden</span></div>
+          <div class="tall"><b>${nf(Number(a("spart_kr_ar", 0)), 0)} kr</b><span>per år med dagens vinduer</span></div>
+        </div>
+        <div class="notat">Mot å la den stå på hele døgnet: ${nf(Number(a("effekt_nominell_w", 46)), 0)} W × ${nf(24 - Number(a("pa_min_i_dag", 0)) / 60, 1)} t av i dag. Effekten læres fra målingen.</div>
+      </div>
+      <div class="blokk">
         <div class="hode"><span>Dusjvinduer</span><span class="sub">${esc(a("morgen", ""))} · ${esc(a("kveld", ""))}</span></div>
         ${this._dognplan([
           { navn: "Håndklevarmer", spenn: [["input_datetime.ki_hanklevarmer_morgen_start", "input_datetime.ki_hanklevarmer_morgen_slutt", "ok", "Morgen"],
@@ -1079,6 +1088,7 @@ class KiKlimaProCard extends HTMLElement {
         ${this._tidRad("input_datetime.ki_hanklevarmer_kveld_slutt", "Til")}
         <div class="undertittel" style="padding-top:10px">Sikkerhet</div>
         ${this._stepperRad("input_number.ki_hanklevarmer_maks_pa_tid", "Slå av etter", 0, " min")}
+        ${this._stepperRad("input_number.ki_hanklevarmer_effekt_w", "Effekt når den er på", 0, " W")}
         <div class="notat">Utenfor vinduene kan den slås på manuelt; da slås den av igjen etter maks på-tid. I rød effektsone utsettes starten noen minutter.</div>
       </div>`;
   }

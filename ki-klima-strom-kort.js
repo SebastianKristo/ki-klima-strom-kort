@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.3.0";
+const KI_PRO_VERSJON = "1.4.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -79,6 +79,7 @@ const HANDLING = {
   normal: { tekst: "Normal", k: "ok" },
   senket: { tekst: "Senket", k: "advarsel" },
   vindu: { tekst: "Vindu åpent", k: "feil" },
+  venter: { tekst: "Venter på tur", k: "advarsel" },
   manuell: { tekst: "Manuell", k: "noytral" },
   utilgjengelig: { tekst: "Utilgjengelig", k: "feil" },
   utsatt: { tekst: "Utsatt", k: "advarsel" },
@@ -132,6 +133,7 @@ const HJELP = {
   overtakelse: "Motoren er den eneste som skriver til ovnene. Bryteren er det motsatte av skyggemodus: på betyr at den faktisk setter settpunkt, av betyr at den bare regner og logger. Soner med «KI styrer» av røres aldri uansett.",
   lagring: "Innlærte lastprofiler, tidskonstanter, overstyringer og beslutningslogg lagres i Home Assistants .storage-mappe og overlever omstart og oppdatering av integrasjonen.",
   malekilde: "Forbruk denne timen måles direkte mot strømmålerens energiregister — motoren husker verdien ved timeskiftet og trekker fra. Svarer ikke registeret, brukes et anslag fra øyeblikkseffekt, som er merkbart mindre presist.",
+  adaptiv: "To reserver: den strategiske (kWh på døgnmaks) holder månedens topp-tre-snitt unna neste trinn og brukes i Dynamisk grense. Usikkerhetsmarginen (kWh på timens sluttforbruk) læres av hvor mye forbruket har blitt høyere enn prognosen (P80 av feilene, per hvor mange minutter som var igjen, og etter tid på døgnet/hverdag-helg når det er nok data). Den trekkes fra tilgjengelig effekt i stedet for den faste reserven — aldri begge, og aldri inn i nettleie-regnestykket. Øker raskt, synker sakte. Timer der motoren selv senket etter at prognosen ble laget, holdes utenfor.",
   sparing: "Anslag uten kontrollgruppe. Varmestyring: motorens egen statistikk (flyttet energi × nettleie-differanse, unngåtte topper, litt spart kWh). Gardiner: varmetap gjennom glasset = U × areal × temperaturforskjell; lukket gardin regnes som 30 % mindre tap om natten — «kunne spart» er det samme for timer de sto åpne. Håndklevarmer: mot å stå på hele døgnet. Bereder: kWh varmet i nattvinduet × forskjellen i energiledd.",
   handlinger: "Entiteter og husets data endres under Innstillinger → Integrasjoner → KI Energi → Konfigurer. Nullstilling av tidskonstanter betyr at motoren må lære huset på nytt, og at nattsenkingen faller tilbake på standardverdier i mellomtiden — bruk det bare hvis tallene ser åpenbart feil ut.",
   leggetid: "Starter kveldssenkingen i rommet med én gang, i stedet for å vente til fast leggetid. Rommet varmes opp igjen til vanlig vekketid. Trykk igjen for å avbryte.",
@@ -363,7 +365,9 @@ class KiKlimaProCard extends HTMLElement {
       "input_number.ki_stat_shed_hendelser", "input_number.ki_stat_flyttet_kwh",
       "sensor.ki_bereder", "sensor.ki_hanklevarmer", "sensor.ki_gardiner", "sensor.ki_vvb_billige_timer",
       "input_number.ki_gardin_slutt_maned", "input_datetime.ki_gardin_apne_tidligst", "input_datetime.ki_gardin_lukk_senest",
-      "sensor.ki_nettleie", "sensor.ki_sparing", "input_text.ki_tariff_tabell", "input_number.ki_mal_trinn_kw", "input_number.ki_reserve_topp_kwh",
+      "sensor.ki_nettleie", "sensor.ki_sparing", "sensor.ki_prognoselaering", "input_boolean.ki_adaptiv_reserve",
+      "input_number.ki_prognose_margin_min", "input_number.ki_prognose_margin_maks", "input_number.ki_prognose_min_obs",
+      "input_boolean.ki_gradvis_gjenoppvarming", "input_number.ki_gjenoppvarming_intervall_min", "input_text.ki_tariff_tabell", "input_number.ki_mal_trinn_kw", "input_number.ki_reserve_topp_kwh",
       "input_boolean.ki_tillat_dyrere_trinn",
       "input_boolean.ki_elbil_natt", "input_boolean.ki_auto_soveromsmodus", "input_number.ki_elbil_effekt_kw", "input_datetime.ki_elbil_fra", "input_datetime.ki_elbil_til",
       "input_boolean.ki_vindu_stopp", "input_number.ki_vindu_forsinkelse_min", "input_number.ki_vindu_temp",
@@ -409,6 +413,19 @@ class KiKlimaProCard extends HTMLElement {
 
     this._rot = this.shadowRoot;
     this._rot.addEventListener("click", (e) => this._klikk(e));
+    // Hold inne (450 ms) på hva som helst med en entitet → åpne entiteten (mer-info)
+    this._rot.addEventListener("pointerdown", (e) => {
+      const el = e.composedPath().find((n) => n && n.dataset && n.dataset.entity);
+      if (!el) return;
+      clearTimeout(this._holdTimer);
+      this._holdTimer = setTimeout(() => {
+        this._holdt = true;
+        if (navigator.vibrate) navigator.vibrate(12);
+        this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: mapId(el.dataset.entity) }, bubbles: true, composed: true }));
+      }, 450);
+    });
+    ["pointerup", "pointercancel", "pointerleave", "pointermove"].forEach((ev) =>
+      this._rot.addEventListener(ev, (e) => { if (ev !== "pointermove" || e.buttons === 0) clearTimeout(this._holdTimer); }));
     this._rot.addEventListener("change", (e) => this._endre(e));
     this._rot.addEventListener("focusout", () => {
       if (this._ventTegn) { this._ventTegn = false; setTimeout(() => this._tegn(), 250); }
@@ -494,7 +511,9 @@ class KiKlimaProCard extends HTMLElement {
             <circle class="spor" cx="50" cy="50" r="43"></circle>
             <circle class="fyll" cx="50" cy="50" r="43"
               style="stroke-dasharray:${o};stroke-dashoffset:${o * (1 - pct / 100)}"></circle>
+            <circle class="strom" cx="50" cy="50" r="43" style="animation-duration:${isFinite(bruk) && bruk > 0.1 ? Math.max(1.2, 8 / bruk).toFixed(1) : 20}s"></circle>
           </svg>
+          <div class="lyn ${isFinite(bruk) && bruk > 2.5 ? "hoy" : ""}"><ha-icon icon="mdi:lightning-bolt"></ha-icon></div>
           <div class="ringtall" title="Forventet ${nf(bruk, 2)} kW av ${nf(tillatt, 2)} kW tillatt">${Math.round(pct)}<span>%</span></div>
         </div>
         <div class="herotekst">
@@ -704,7 +723,7 @@ class KiKlimaProCard extends HTMLElement {
     return `<div class="blokk">
       <div class="hode"><span>Soner</span><span class="sub">Trykk for settpunkt og overstyring</span></div>
       ${laster.map((l) => {
-        const h = HANDLING[l.handling] || { tekst: l.handling, k: "noytral" };
+        const h = HANDLING[l.venter ? "venter" : l.handling] || { tekst: l.handling, k: "noytral" };
         const apen = this._apne.has(l.key);
         const styr = l.styr || (SONE_STYR[l.key] ? `input_boolean.${SONE_STYR[l.key]}` : null);
         const på = styr ? this._pa(styr) : false;
@@ -985,8 +1004,7 @@ class KiKlimaProCard extends HTMLElement {
                data-handling="veksle" data-entity="input_boolean.ki_gardin_folg_sol"><span></span></div>
         </div>
         <div class="undertittel" style="padding-top:10px">Klokkeslett</div>
-        ${this._tidRad("input_datetime.ki_gardin_apne_tidligst", "Åpne tidligst")}
-        ${this._tidRad("input_datetime.ki_gardin_lukk_senest", "Lukk senest")}
+        ${this._tidPar("Åpne tidligst", "input_datetime.ki_gardin_apne_tidligst", "Lukk senest", "input_datetime.ki_gardin_lukk_senest")}
         <div class="undertittel" style="padding-top:10px">Sesong</div>
         ${this._manedStripe("input_number.ki_gardin_start_maned", "input_number.ki_gardin_slutt_maned", "Gardinsesong")}
         ${this._dognplan([{ navn: "Gardiner", spenn: [["input_datetime.ki_gardin_apne_tidligst", "input_datetime.ki_gardin_lukk_senest", "dag", "Kan være åpne"]] }])}
@@ -1151,6 +1169,35 @@ class KiKlimaProCard extends HTMLElement {
         </div>`).join("")}
         ${Number(a.gardin_kunne_spart_kr || 0) > 0.5 ? `<div class="notat"><ha-icon icon="mdi:lightbulb-on-outline" style="--mdc-icon-size:14px;vertical-align:-3px"></ha-icon> Gardinene sto åpne om natten i timer de burde vært lukket — ${nf(Number(a.gardin_kunne_spart_kr), 0)} kr til denne måneden hvis de lukkes.</div>` : ""}
       </div>`;
+  }
+
+  _prognoseStatusTekst() {
+    const st = this._st("sensor.ki_prognoselaering");
+    if (!st) return "Ingen data";
+    return ({ laerer: "Lærer", aktiv: "Adaptiv margin aktiv", usikkert_grunnlag: "Usikkert grunnlag", av: "Fast reserve" })[st.state] || st.state;
+  }
+
+  // Forventet sluttforbruk, intervall, aktiv margin, strategisk reserve, observasjoner, begrunnelse.
+  _prognoseBlokk() {
+    const st = this._st("sensor.ki_prognoselaering");
+    if (!st) return "";
+    const a = st.attributes;
+    const k = { laerer: "advarsel", aktiv: "ok", usikkert_grunnlag: "advarsel", av: "noytral" }[st.state] || "noytral";
+    const iv = a.prognoseintervall_kwh;
+    return `
+      <div class="tallrad">
+        <div class="tall"><b>${nf(Number(a.forventet_slutt_kwh || 0), 2)}</b><span>forventet ved timeslutt (kWh)</span></div>
+        <div class="tall"><b>+${nf(Number(a.kwh || 0), 2)}</b><span>usikkerhetsmargin (kWh)</span></div>
+        <div class="tall"><b>${nf(Number(a.strategisk_reserve_kwh || 0), 2)}</b><span>strategisk reserve (kWh, døgnmaks)</span></div>
+      </div>
+      <div class="fakta" style="padding:6px 0 4px">
+        <span class="badge b-${k}">${esc(this._prognoseStatusTekst())}</span>
+        <span>${a.n || 0} obs. (${a.horisont || "–"} min igjen${a.kilde === "segment" ? ", " + esc(String(a.segment || "").replace("_", " ")) : ""})</span>
+        ${iv ? `<span>intervall ${nf(iv[0], 2)}–${nf(iv[1], 2)} kWh (P20–P80, ingen garanti)</span>` : ""}
+        ${a.dekning_observert != null ? `<span>innenfor margin ${nf(100 * a.dekning_observert, 0)} % av ${a.n_dekning}</span>` : ""}
+        ${a.n_pavirket ? `<span>${a.n_pavirket} holdt utenfor (egne tiltak)</span>` : ""}
+      </div>
+      <div class="konklusjon" style="font-size:13px">${esc(a.grunn || "")}</div>`;
   }
 
   _prisStripe() {
@@ -1375,7 +1422,7 @@ class KiKlimaProCard extends HTMLElement {
       <div class="blokk">
         <div class="hode"><span>Vurdering per sone</span><span class="sub">Sortert som motoren prioriterer</span></div>
         ${laster.map((l) => {
-          const h = HANDLING[l.handling] || { tekst: l.handling, k: "noytral" };
+          const h = HANDLING[l.venter ? "venter" : l.handling] || { tekst: l.handling, k: "noytral" };
           return `<div class="rad rad-les">
             <div class="prikk p-${h.k}"></div>
             <div class="radtekst"><div class="radnavn">${esc(l.navn)} <span class="badge b-${h.k}">${esc(h.tekst)}</span>${l.leggetid ? ' <span class="badge b-noytral">leggetid</span>' : ""}${l.forvarm ? ' <span class="badge b-ok">forvarmer</span>' : ""}</div>
@@ -1422,6 +1469,7 @@ class KiKlimaProCard extends HTMLElement {
         ["input_boolean.ki_skyggemodus", "Skyggemodus", "Regner og logger, styrer ingenting", "skyggemodus"],
         ["input_boolean.ki_dynamisk_grense", "Dynamisk grense", "Regner mot snittet av tre topper"],
         ["input_boolean.ki_laering_tau", "Lær tidskonstanter", "Måler hvor fort hver sone varmer og kjøler"],
+        ["input_boolean.ki_gradvis_gjenoppvarming", "Gradvis gjenoppvarming", "Senkede soner slippes én om gangen når grensen letter — ingen ny topp etter timeskiftet"],
         ["input_boolean.ki_auto_soveromsmodus", "Automatisk soveromsmodus", "Søvnsensor (KI Søvn) styrer natt-temperaturen — sover = senk nå, våken = hold dag til hen sovner"],
       ]],
       ["Varme og komfort", [
@@ -1536,6 +1584,7 @@ class KiKlimaProCard extends HTMLElement {
         ${this._stepperRad("input_number.ki_stue_reduksjon", "Stue reduksjon", 1, " °C")}
         ${this._stepperRad("input_number.ki_vindu_forsinkelse_min", "Vindu: vent før senking", 0, " min")}
         ${this._stepperRad("input_number.ki_vindu_temp", "Vindu: hold temperatur", 1, " °C")}
+        ${this._stepperRad("input_number.ki_gjenoppvarming_intervall_min", "Gjenoppvarming: intervall mellom soner", 0, " min")}
       </div>
       <div class="blokk">
         <div class="hode"><span>Diagnostikk</span><span class="sub">Rå tilstand</span></div>
@@ -1608,17 +1657,26 @@ class KiKlimaProCard extends HTMLElement {
       </div>
 
       <div class="blokk">
-        <div class="hode"><span>Prognose og reserver</span>
-          <span class="sub">Brukes til motoren har lært profilen</span></div>
-        ${this._stepperRad("input_number.ki_reserve_uregulert_kwh", "Reserve uregulert last", 2, " kW")}
+        <div class="hode"><span>Prognose og reserver${this._hj("adaptiv")}</span>
+          <span class="sub">${esc(this._prognoseStatusTekst())}</span></div>
+        ${this._hjTekst("adaptiv")}
+        ${this._prognoseBlokk()}
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Adaptiv reserve</div>
+            <div class="radsub">Lærer usikkerhetsmargin for timen av prognosefeil. Av = fast reserve under</div></div>
+          <div class="bryter ${this._pa("input_boolean.ki_adaptiv_reserve") ? "on" : ""}" data-handling="veksle" data-entity="input_boolean.ki_adaptiv_reserve"><span></span></div>
+        </div>
+        ${this._stepperRad("input_number.ki_reserve_uregulert_kwh", "Fast reserve (fallback)", 2, " kW")}
+        ${this._stepperRad("input_number.ki_prognose_margin_min", "Margin minimum", 2, " kWh")}
+        ${this._stepperRad("input_number.ki_prognose_margin_maks", "Margin maksimum", 2, " kWh")}
+        ${this._stepperRad("input_number.ki_prognose_min_obs", "Minste grunnlag", 0, " obs")}
+        <div class="hurtig"><div class="mini" data-handling="tjeneste" data-domene="ki_energi" data-tjeneste="nullstill_prognoselaering">Nullstill prognoselæring</div></div>
         ${this._stepperRad("input_number.ki_reserve_frokost_kwh", "Reserve frokost", 1, " kW")}
         ${this._stepperRad("input_number.ki_reserve_middag_kwh", "Reserve middag", 1, " kW")}
         <div class="undertittel" style="padding-top:10px">Måltidsvinduer</div>
         ${this._dognplan([{ navn: "Måltider", spenn: [["input_datetime.ki_frokost_start", "input_datetime.ki_frokost_slutt", "ok", "Frokost"], ["input_datetime.ki_middag_start", "input_datetime.ki_middag_slutt", "ok", "Middag"]] }])}
-        ${this._tidRad("input_datetime.ki_frokost_start", "Frokost fra")}
-        ${this._tidRad("input_datetime.ki_frokost_slutt", "Frokost til")}
-        ${this._tidRad("input_datetime.ki_middag_start", "Middag fra")}
-        ${this._tidRad("input_datetime.ki_middag_slutt", "Middag til")}
+        ${this._tidPar("Frokost fra", "input_datetime.ki_frokost_start", "til", "input_datetime.ki_frokost_slutt")}
+        ${this._tidPar("Middag fra", "input_datetime.ki_middag_start", "til", "input_datetime.ki_middag_slutt")}
         <div class="notat">Måltidsreservene brukes bare til lastprofilen har nok målinger for
           timen. Etter det vet motoren selv hva komfyren pleier å trekke.</div>
       </div>
@@ -1653,8 +1711,7 @@ class KiKlimaProCard extends HTMLElement {
         ])}
         ${this._tidBryterRad("input_datetime.ki_helg_varsel_tid_torsdag", "input_boolean.ki_helg_spor_torsdag", "Spør torsdag")}
         ${this._tidBryterRad("input_datetime.ki_helg_varsel_tid", "input_boolean.ki_helg_spor_fredag", "Spør fredag")}
-        ${this._tidRad("input_datetime.ki_helg_sporsmal_tid", "Spørsmål søndag")}
-        ${this._tidRad("input_datetime.ki_helg_frist_tid", "Svarfrist søndag")}
+        ${this._tidPar("Søndag spør", "input_datetime.ki_helg_sporsmal_tid", "frist", "input_datetime.ki_helg_frist_tid")}
         ${this._tidRad("input_datetime.ki_hjemkomst_tid", this._l("Forventet hjemkomst"))}
         <div class="hurtig">
           <div class="mini" data-handling="tjeneste" data-domene="ki_energi" data-tjeneste="helg_sporsmal">Send spørsmålet nå</div>
@@ -1911,6 +1968,7 @@ class KiKlimaProCard extends HTMLElement {
   /* ---------------------------- Interaksjon ------------------- */
 
   _klikk(ev) {
+    if (this._holdt) { this._holdt = false; ev.preventDefault(); ev.stopPropagation(); return; }
     const el = ev.composedPath().find((n) => n.dataset && n.dataset.handling);
     if (!el) return;
     const h = el.dataset.handling;
@@ -2047,6 +2105,15 @@ class KiKlimaProCard extends HTMLElement {
       .ring svg { width:88px; height:88px; transform: rotate(-90deg); }
       .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }
       .spor { stroke: rgba(128,128,128,.24); }
+      /* energistrøm: små lysprikker som løper rundt ringen, fortere jo mer effekt */
+      .ring .strom { stroke: rgba(255,255,255,.55); stroke-width:3; stroke-dasharray:2 14; stroke-linecap:round;
+        animation: kistrom 6s linear infinite; }
+      @keyframes kistrom { to { stroke-dashoffset:-270; } }
+      .ring .lyn { position:absolute; left:50%; top:8px; transform:translateX(-50%); --mdc-icon-size:14px;
+        color:#ffd166; opacity:.7; animation: kilynpuls 2.4s ease-in-out infinite; }
+      .ring .lyn.hoy { --mdc-icon-size:17px; opacity:1; animation-duration:1.1s; }
+      @keyframes kilynpuls { 0%,100% { transform:translateX(-50%) scale(1); opacity:.6; } 50% { transform:translateX(-50%) scale(1.25); opacity:1; } }
+      @media (prefers-reduced-motion: reduce) { .ring .strom, .ring .lyn { animation:none; } }
       .fyll { stroke: var(--green, #4caf50); transition: stroke-dashoffset .6s cubic-bezier(.2,.7,.3,1); }
       .hero[data-sone="gul"] .fyll { stroke: var(--yellow, #f2c94c); }
       .hero[data-sone="oransje"] .fyll { stroke: var(--orange, #fc6d09); }

@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.2.0";
+const KI_PRO_VERSJON = "1.3.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -41,18 +41,8 @@ const FANER = [
 
 // Entitetene motoren bruker per sone. Brukes bare til diagnostikk i kortet,
 // så manglende sensorer blir synlige uten å måtte grave i pyscript-fila.
-const SONE_ENTITETER = {
-  stue_panelovn: ["climate.stue_panelovn", "sensor.stue_panelovn_current_power", "sensor.stue_panelovn_control_signal"],
-  stue_oljefyr: ["climate.stue_oljefyr", "sensor.stue_oljefyr_current_power", "sensor.stue_oljefyr_control_signal"],
-  trappegang: ["climate.trappegang_panelovn", "sensor.trappegang_panelovn_current_power", "sensor.trappegang_panelovn_control_signal"],
-  kjokken_panelovn: ["climate.kjokken_panelovn", "sensor.kjokken_panelovn_current_power", "sensor.kjokken_panelovn_control_signal"],
-  cybele: ["climate.cybele_panelovn", "sensor.cybele_panelovn_current_power", "sensor.cybele_panelovn_control_signal"],
-  sebastian: ["climate.sebastian_panelovn", "sensor.sebastian_panelovn_stikkontakt_power", "sensor.panelovn_temperature"],
-  kjokken_gulv: ["climate.kjokken_gulvvarme", "sensor.kjokken_gulvvarme_power", "sensor.kjokken_gulvvarme_air_temperature"],
-  bad_gulv: ["climate.bad_gulvvarme", "sensor.bad_gulvvarme_power", "sensor.bad_gulvvarme_temperature"],
-  vaskegang_gulv: ["climate.vaskegang_gulvvarme", "sensor.vaskegang_gulvvarme_power", "sensor.vaskegang_gulvvarme_air_temperature"],
-  do_gulv: ["climate.do_gulvvarme", "sensor.do_gulvvarme_power", "sensor.do_gulvvarme_room_temperature"],
-};
+// Sonenes entiteter, hjelpere og brytere kommer fra integrasjonen (sensor.ki_laster).
+const SONE_ENTITETER = {};
 
 const TIMESMALER_KANDIDATER = ["sensor.ki_time_energi"];
 
@@ -97,26 +87,9 @@ const HANDLING = {
 };
 
 // Settpunkt-helpere per sonenøkkel, slik motoren bruker dem
-const SONE_HELPERE = {
-  stue_panelovn: [["ki_temp_stue_dag", "Dag"], ["ki_temp_stue_natt", "Natt"]],
-  stue_oljefyr: [["ki_temp_stue_dag", "Dag"], ["ki_temp_stue_natt", "Natt"]],
-  trappegang: [["ki_temp_trappegang_dag", "Dag"], ["ki_temp_trappegang_natt", "Natt"]],
-  kjokken_panelovn: [["ki_temp_kjokken_panelovn_dag", "Dag"], ["ki_temp_kjokken_panelovn_natt", "Natt"]],
-  cybele: [["ki_temp_cybele_dag", "Dag"], ["ki_temp_cybele_natt", "Natt"], ["ki_temp_cybele_borte", "Borte"]],
-  sebastian: [["ki_temp_sebastian_dag", "Dag"], ["ki_temp_sebastian_natt", "Natt"]],
-  kjokken_gulv: [["ki_temp_kjokken", "Settpunkt"]],
-  bad_gulv: [["ki_temp_bad", "Settpunkt"]],
-  vaskegang_gulv: [["ki_temp_vaskegang", "Settpunkt"]],
-  do_gulv: [["ki_temp_do", "Settpunkt"]],
-};
+const SONE_HELPERE = {};
 
-const SONE_STYR = {
-  stue_panelovn: "ki_styr_stue_panelovn", stue_oljefyr: "ki_styr_stue_oljefyr",
-  trappegang: "ki_styr_trappegang_panelovn", kjokken_panelovn: "ki_styr_kjokken_panelovn",
-  cybele: "ki_styr_cybele_panelovn", sebastian: "ki_styr_sebastian_panelovn",
-  kjokken_gulv: "ki_styr_kjokken_gulvvarme", bad_gulv: "ki_styr_bad_gulvvarme",
-  vaskegang_gulv: "ki_styr_vaskegang_gulvvarme", do_gulv: "ki_styr_do_gulvvarme",
-};
+const SONE_STYR = {};
 
 // Forklaringer bak spørsmålstegnene. Kort, konkret, og om hva som faktisk
 // skjer — ikke en omskriving av navnet på feltet.
@@ -135,7 +108,7 @@ const HODE_IKON = {
   "Diagnostikk": "mdi:stethoscope", "Denne måneden": "mdi:calendar-month", "Brytere": "mdi:toggle-switch",
   "Beslutningslogg": "mdi:text-box-outline", "Tarifftabell": "mdi:table", "Motor": "mdi:engine", "Varme og komfort": "mdi:radiator",
   "Helg og sommer": "mdi:calendar-weekend", "Vann og bad": "mdi:shower", "Varslinger": "mdi:bell-ring-outline",
-  "Dag og natt": "mdi:theme-light-dark", "Cybele": "mdi:account", "Sebastian": "mdi:account-school", "Stue og vindu": "mdi:sofa",
+  "Dag og natt": "mdi:theme-light-dark", "Stue og vindu": "mdi:sofa",
   "Leggetid": "mdi:bed", "Elbil": "mdi:ev-station", "KI sparer": "mdi:piggy-bank-outline",
 };
 
@@ -159,6 +132,7 @@ const HJELP = {
   overtakelse: "Motoren er den eneste som skriver til ovnene. Bryteren er det motsatte av skyggemodus: på betyr at den faktisk setter settpunkt, av betyr at den bare regner og logger. Soner med «KI styrer» av røres aldri uansett.",
   lagring: "Innlærte lastprofiler, tidskonstanter, overstyringer og beslutningslogg lagres i Home Assistants .storage-mappe og overlever omstart og oppdatering av integrasjonen.",
   malekilde: "Forbruk denne timen måles direkte mot strømmålerens energiregister — motoren husker verdien ved timeskiftet og trekker fra. Svarer ikke registeret, brukes et anslag fra øyeblikkseffekt, som er merkbart mindre presist.",
+  sparing: "Anslag uten kontrollgruppe. Varmestyring: motorens egen statistikk (flyttet energi × nettleie-differanse, unngåtte topper, litt spart kWh). Gardiner: varmetap gjennom glasset = U × areal × temperaturforskjell; lukket gardin regnes som 30 % mindre tap om natten — «kunne spart» er det samme for timer de sto åpne. Håndklevarmer: mot å stå på hele døgnet. Bereder: kWh varmet i nattvinduet × forskjellen i energiledd.",
   handlinger: "Entiteter og husets data endres under Innstillinger → Integrasjoner → KI Energi → Konfigurer. Nullstilling av tidskonstanter betyr at motoren må lære huset på nytt, og at nattsenkingen faller tilbake på standardverdier i mellomtiden — bruk det bare hvis tallene ser åpenbart feil ut.",
   leggetid: "Starter kveldssenkingen i rommet med én gang, i stedet for å vente til fast leggetid. Rommet varmes opp igjen til vanlig vekketid. Trykk igjen for å avbryte.",
   standardverdier: "Setter alle innstillinger tilbake til de anbefalte utgangsverdiene. Entiteter og husets data ligger i integrasjonens konfigurasjon og røres ikke.",
@@ -373,9 +347,8 @@ class KiKlimaProCard extends HTMLElement {
       "input_number.ki_helg_auto_timer", "input_number.ki_sommer_start_maned",
       "input_number.ki_sommer_slutt_maned", "input_number.ki_sommer_ute_grense",
       "input_number.ki_gardin_ute_grense", "input_number.ki_temp_helg_bad",
-      "input_datetime.ki_hjemkomst_tid", "input_datetime.ki_cybele_borte_fra",
-      "input_datetime.ki_cybele_borte_til", "input_boolean.ki_helgemodus",
-      "input_boolean.ki_sommermodus", "input_boolean.ki_sebastian_ferie",
+      "input_datetime.ki_hjemkomst_tid", "input_boolean.ki_helgemodus",
+      "input_boolean.ki_sommermodus",
       "input_boolean.ki_helg_senk_gulvvarme", "binary_sensor.ki_alle_borte",
       "input_boolean.ki_dynamisk_grense", "input_boolean.ki_prediktiv_forvarming",
       "input_boolean.ki_laering_tau", "input_boolean.ki_solkompensasjon",
@@ -390,7 +363,7 @@ class KiKlimaProCard extends HTMLElement {
       "input_number.ki_stat_shed_hendelser", "input_number.ki_stat_flyttet_kwh",
       "sensor.ki_bereder", "sensor.ki_hanklevarmer", "sensor.ki_gardiner", "sensor.ki_vvb_billige_timer",
       "input_number.ki_gardin_slutt_maned", "input_datetime.ki_gardin_apne_tidligst", "input_datetime.ki_gardin_lukk_senest",
-      "sensor.ki_nettleie", "input_text.ki_tariff_tabell", "input_number.ki_mal_trinn_kw", "input_number.ki_reserve_topp_kwh",
+      "sensor.ki_nettleie", "sensor.ki_sparing", "input_text.ki_tariff_tabell", "input_number.ki_mal_trinn_kw", "input_number.ki_reserve_topp_kwh",
       "input_boolean.ki_tillat_dyrere_trinn",
       "input_boolean.ki_elbil_natt", "input_boolean.ki_auto_soveromsmodus", "input_number.ki_elbil_effekt_kw", "input_datetime.ki_elbil_fra", "input_datetime.ki_elbil_til",
       "input_boolean.ki_vindu_stopp", "input_number.ki_vindu_forsinkelse_min", "input_number.ki_vindu_temp",
@@ -398,9 +371,7 @@ class KiKlimaProCard extends HTMLElement {
       "input_boolean.ki_varsel_effekt", "input_boolean.ki_varsel_helg", "input_boolean.ki_varsel_hjemkomst",
       "input_boolean.ki_varsel_sommer", "input_boolean.ki_varsel_vvb", "input_boolean.ki_varsel_hanklevarmer",
       "input_datetime.ki_tid_dag_start", "input_datetime.ki_tid_natt_start",
-      "input_datetime.ki_cybele_dag", "input_datetime.ki_cybele_natt",
-      "input_datetime.ki_sebastian_vekking", "input_datetime.ki_sebastian_vekking_helg",
-      "input_datetime.ki_sebastian_natt", "input_datetime.ki_stue_reduksjon_fra",
+      "input_datetime.ki_stue_reduksjon_fra",
       "input_number.ki_sone_gul", "input_number.ki_sone_oransje", "input_number.ki_sone_rod",
       "input_number.ki_reserve_frokost_kwh", "input_number.ki_reserve_middag_kwh",
       "input_number.ki_gardin_start_maned",
@@ -938,6 +909,7 @@ class KiKlimaProCard extends HTMLElement {
         ${this._hjTekst("komfortvekt")}
         ${this._hjTekst("shed")}
       </div>
+      ${this._sparingBlokk()}
       <div class="blokk">
         <div class="hode"><span>Denne måneden</span><span class="sub">Estimat, ikke måling</span></div>
         <div class="tallrad">
@@ -1152,6 +1124,33 @@ class KiKlimaProCard extends HTMLElement {
         }).join("")}
       </div></div>
       <div class="stripeforklaring"><span><i class="s-pris"></i>Målt</span><span><i class="s-est"></i>Estimert grense</span><span><i class="s-naa"></i>Nå (lys = forventet slutt)</span><span>Rød = over grensen</span></div>`;
+  }
+
+  // Hva KI sparer denne måneden — per post, med «kunne spart» for gardinene.
+  _sparingBlokk() {
+    const st = this._st("sensor.ki_sparing");
+    if (!st) return "";
+    const a = st.attributes;
+    const poster = a.poster || {};
+    const ikon = { motor: "mdi:engine", gardiner: "mdi:curtains", hanklevarmer: "mdi:radiator", bereder: "mdi:water-boiler" };
+    const navn = { motor: "Varmestyring", gardiner: "Gardiner", hanklevarmer: "Håndklevarmer", bereder: "Bereder" };
+    const maks = Math.max(1, ...Object.values(poster).map((p) => Math.max(p.kr || 0, p.potensial_kr || 0)));
+    return `
+      <div class="blokk">
+        <div class="hode"><span>KI sparer${this._hj("sparing")}</span><span class="sub">${nf(Number(a.total_kr_maned || 0), 0)} kr · ${nf(Number(a.total_kwh_maned || 0), 1)} kWh denne måneden</span></div>
+        ${this._hjTekst("sparing", a.merknad || "")}
+        <div class="stor">${nf(Number(a.total_kr_maned || 0), 0)} <small>kr spart i ${new Date().toLocaleDateString("nb-NO", { month: "long" })}</small></div>
+        ${Object.entries(poster).filter(([k]) => k !== "gardiner" || this._har("gardiner")).filter(([k]) => k !== "hanklevarmer" || this._har("hanklevarmer")).map(([k, p]) => `
+        <div class="sparerad">
+          <div class="radtekst"><div class="radnavn"><ha-icon icon="${ikon[k]}" class="hodeikon"></ha-icon> ${navn[k]}</div><div class="radsub">${esc(p.tekst || "")}</div></div>
+          <div class="sparestolpe">
+            <div class="sf" style="width:${(100 * (p.kr || 0) / maks).toFixed(0)}%"></div>
+            ${p.potensial_kr ? `<div class="sp" style="width:${(100 * p.potensial_kr / maks).toFixed(0)}%" title="kunne spart"></div>` : ""}
+          </div>
+          <div class="radverdi kort">${nf(p.kr || 0, 0)} kr <small>${nf(p.kwh || 0, 1)} kWh</small>${p.potensial_kr > 0.5 ? `<div class="pot">+${nf(p.potensial_kr, 0)} kr mulig</div>` : ""}</div>
+        </div>`).join("")}
+        ${Number(a.gardin_kunne_spart_kr || 0) > 0.5 ? `<div class="notat"><ha-icon icon="mdi:lightbulb-on-outline" style="--mdc-icon-size:14px;vertical-align:-3px"></ha-icon> Gardinene sto åpne om natten i timer de burde vært lukket — ${nf(Number(a.gardin_kunne_spart_kr), 0)} kr til denne måneden hvis de lukkes.</div>` : ""}
+      </div>`;
   }
 
   _prisStripe() {
@@ -2184,6 +2183,12 @@ class KiKlimaProCard extends HTMLElement {
       .ts-time span { font-size:9px; opacity:.55; height:12px; line-height:12px; }
       .ts-time.mangler b { opacity:.4; }
       .s-naa { background: var(--green, #4caf50); }
+      .sparerad { display:grid; grid-template-columns:1fr 90px auto; gap:10px; align-items:center; padding:7px 2px; border-top:1px solid rgba(128,128,128,.12); }
+      .sparestolpe { position:relative; height:10px; border-radius:5px; background: rgba(128,128,128,.16); overflow:hidden; }
+      .sparestolpe .sf { position:absolute; left:0; top:0; bottom:0; background: var(--green, #4caf50); border-radius:5px; }
+      .sparestolpe .sp { position:absolute; left:0; top:0; bottom:0; background: repeating-linear-gradient(45deg, rgba(76,175,80,.35) 0 3px, transparent 3px 6px); border-radius:5px; }
+      .sparerad .radverdi small { font-weight:500; opacity:.6; margin-left:4px; }
+      .sparerad .pot { font-size:10.5px; font-weight:500; color: var(--green, #4caf50); }
       .dognplan { padding:8px 0 2px; }
       .dp-rad { display:grid; grid-template-columns:72px 1fr; align-items:center; gap:8px; height:34px; }
       .dp-navn { font-size:12px; font-weight:600; opacity:.75; text-align:right; padding-right:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

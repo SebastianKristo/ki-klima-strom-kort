@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.4.0";
+const KI_PRO_VERSJON = "1.4.1";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -511,9 +511,9 @@ class KiKlimaProCard extends HTMLElement {
             <circle class="spor" cx="50" cy="50" r="43"></circle>
             <circle class="fyll" cx="50" cy="50" r="43"
               style="stroke-dasharray:${o};stroke-dashoffset:${o * (1 - pct / 100)}"></circle>
-            <circle class="strom" cx="50" cy="50" r="43" style="animation-duration:${isFinite(bruk) && bruk > 0.1 ? Math.max(1.2, 8 / bruk).toFixed(1) : 20}s"></circle>
+            <circle class="komet" cx="50" cy="50" r="43" style="animation-duration:${isFinite(bruk) && bruk > 0.1 ? Math.max(2.5, 14 / bruk).toFixed(1) : 30}s"></circle>
           </svg>
-          <div class="lyn ${isFinite(bruk) && bruk > 2.5 ? "hoy" : ""}"><ha-icon icon="mdi:lightning-bolt"></ha-icon></div>
+          <div class="glod" style="animation-duration:${isFinite(bruk) && bruk > 0.1 ? Math.max(2.4, 7 - bruk).toFixed(1) : 8}s"></div>
           <div class="ringtall" title="Forventet ${nf(bruk, 2)} kW av ${nf(tillatt, 2)} kW tillatt">${Math.round(pct)}<span>%</span></div>
         </div>
         <div class="herotekst">
@@ -2105,15 +2105,24 @@ class KiKlimaProCard extends HTMLElement {
       .ring svg { width:88px; height:88px; transform: rotate(-90deg); }
       .ring circle { fill:none; stroke-width:8; stroke-linecap:round; }
       .spor { stroke: rgba(128,128,128,.24); }
-      /* energistrøm: små lysprikker som løper rundt ringen, fortere jo mer effekt */
-      .ring .strom { stroke: rgba(255,255,255,.55); stroke-width:3; stroke-dasharray:2 14; stroke-linecap:round;
-        animation: kistrom 6s linear infinite; }
-      @keyframes kistrom { to { stroke-dashoffset:-270; } }
-      .ring .lyn { position:absolute; left:50%; top:8px; transform:translateX(-50%); --mdc-icon-size:14px;
-        color:#ffd166; opacity:.7; animation: kilynpuls 2.4s ease-in-out infinite; }
-      .ring .lyn.hoy { --mdc-icon-size:17px; opacity:1; animation-duration:1.1s; }
-      @keyframes kilynpuls { 0%,100% { transform:translateX(-50%) scale(1); opacity:.6; } 50% { transform:translateX(-50%) scale(1.25); opacity:1; } }
-      @media (prefers-reduced-motion: reduce) { .ring .strom, .ring .lyn { animation:none; } }
+      /* Minimalistisk: én lysende komet som glir rundt ringen (fortere jo mer effekt), og et mykt
+         pustende lys bak ringen i sonens farge. Ingenting annet beveger seg. */
+      .ring .komet { stroke: currentColor; stroke-width:3.5; stroke-linecap:round; opacity:.9;
+        stroke-dasharray: 18 252; stroke-dashoffset: 0; animation: kikomet 8s linear infinite;
+        filter: drop-shadow(0 0 3px currentColor); }
+      @keyframes kikomet { to { stroke-dashoffset: -270; } }
+      .ring { color: var(--green, #4caf50); }
+      .hero[data-sone="gul"] .ring { color: var(--yellow, #f2c94c); }
+      .hero[data-sone="oransje"] .ring { color: var(--orange, #fc6d09); }
+      .hero[data-sone="rod"] .ring, .hero[data-sone="kritisk"] .ring { color: var(--red, #f44336); }
+      .hero[data-sone="av"] .ring, .hero[data-sone="fallback"] .ring { color: rgba(128,128,128,.6); }
+      .hero[data-sone="av"] .komet, .hero[data-sone="fallback"] .komet { animation: none; opacity:0; }
+      .ring .glod { position:absolute; inset:-14px; border-radius:50%; z-index:-1; pointer-events:none;
+        background: radial-gradient(circle, currentColor 0%, transparent 62%); opacity:.14;
+        animation: kiglod 6s ease-in-out infinite; }
+      @keyframes kiglod { 0%,100% { transform:scale(.92); opacity:.10; } 50% { transform:scale(1.06); opacity:.22; } }
+      .ring { position:relative; z-index:0; }
+      @media (prefers-reduced-motion: reduce) { .ring .komet, .ring .glod { animation:none; } }
       .fyll { stroke: var(--green, #4caf50); transition: stroke-dashoffset .6s cubic-bezier(.2,.7,.3,1); }
       .hero[data-sone="gul"] .fyll { stroke: var(--yellow, #f2c94c); }
       .hero[data-sone="oransje"] .fyll { stroke: var(--orange, #fc6d09); }

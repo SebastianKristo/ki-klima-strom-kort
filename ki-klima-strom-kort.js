@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.4.1";
+const KI_PRO_VERSJON = "1.5.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -110,7 +110,7 @@ const HODE_IKON = {
   "Beslutningslogg": "mdi:text-box-outline", "Tarifftabell": "mdi:table", "Motor": "mdi:engine", "Varme og komfort": "mdi:radiator",
   "Helg og sommer": "mdi:calendar-weekend", "Vann og bad": "mdi:shower", "Varslinger": "mdi:bell-ring-outline",
   "Dag og natt": "mdi:theme-light-dark", "Stue og vindu": "mdi:sofa",
-  "Leggetid": "mdi:bed", "Elbil": "mdi:ev-station", "KI sparer": "mdi:piggy-bank-outline",
+  "Leggetid": "mdi:bed", "Elbil": "mdi:ev-station", "KI sparer": "mdi:piggy-bank-outline", "Lys": "mdi:lightbulb-group-outline",
 };
 
 const HJELP = {
@@ -133,6 +133,7 @@ const HJELP = {
   overtakelse: "Motoren er den eneste som skriver til ovnene. Bryteren er det motsatte av skyggemodus: på betyr at den faktisk setter settpunkt, av betyr at den bare regner og logger. Soner med «KI styrer» av røres aldri uansett.",
   lagring: "Innlærte lastprofiler, tidskonstanter, overstyringer og beslutningslogg lagres i Home Assistants .storage-mappe og overlever omstart og oppdatering av integrasjonen.",
   malekilde: "Forbruk denne timen måles direkte mot strømmålerens energiregister — motoren husker verdien ved timeskiftet og trekker fra. Svarer ikke registeret, brukes et anslag fra øyeblikkseffekt, som er merkbart mindre presist.",
+  lys: "Glemt lys: med bevegelses-/nærværssensor slås lyset av først når rommet har vært tomt i valgt antall minutter — aldri mens noen er der. Uten sensor slås det av etter lang sammenhengende på-tid, bare innenfor tidsvinduet (standard 08–22). Nattdemping: lysstyrken settes én gang ved natt og én gang ved dag; endrer du den manuelt, lar KI den stå til neste overgang. Besparelsen anslås fra oppgitt effekt.",
   adaptiv: "To reserver: den strategiske (kWh på døgnmaks) holder månedens topp-tre-snitt unna neste trinn og brukes i Dynamisk grense. Usikkerhetsmarginen (kWh på timens sluttforbruk) læres av hvor mye forbruket har blitt høyere enn prognosen (P80 av feilene, per hvor mange minutter som var igjen, og etter tid på døgnet/hverdag-helg når det er nok data). Den trekkes fra tilgjengelig effekt i stedet for den faste reserven — aldri begge, og aldri inn i nettleie-regnestykket. Øker raskt, synker sakte. Timer der motoren selv senket etter at prognosen ble laget, holdes utenfor.",
   sparing: "Anslag uten kontrollgruppe. Varmestyring: motorens egen statistikk (flyttet energi × nettleie-differanse, unngåtte topper, litt spart kWh). Gardiner: varmetap gjennom glasset = U × areal × temperaturforskjell; lukket gardin regnes som 30 % mindre tap om natten — «kunne spart» er det samme for timer de sto åpne. Håndklevarmer: mot å stå på hele døgnet. Bereder: kWh varmet i nattvinduet × forskjellen i energiledd.",
   handlinger: "Entiteter og husets data endres under Innstillinger → Integrasjoner → KI Energi → Konfigurer. Nullstilling av tidskonstanter betyr at motoren må lære huset på nytt, og at nattsenkingen faller tilbake på standardverdier i mellomtiden — bruk det bare hvis tallene ser åpenbart feil ut.",
@@ -365,7 +366,7 @@ class KiKlimaProCard extends HTMLElement {
       "input_number.ki_stat_shed_hendelser", "input_number.ki_stat_flyttet_kwh",
       "sensor.ki_bereder", "sensor.ki_hanklevarmer", "sensor.ki_gardiner", "sensor.ki_vvb_billige_timer",
       "input_number.ki_gardin_slutt_maned", "input_datetime.ki_gardin_apne_tidligst", "input_datetime.ki_gardin_lukk_senest",
-      "sensor.ki_nettleie", "sensor.ki_sparing", "sensor.ki_prognoselaering", "input_boolean.ki_adaptiv_reserve",
+      "sensor.ki_nettleie", "sensor.ki_sparing", "sensor.ki_lys", "sensor.ki_prognoselaering", "input_boolean.ki_adaptiv_reserve",
       "input_number.ki_prognose_margin_min", "input_number.ki_prognose_margin_maks", "input_number.ki_prognose_min_obs",
       "input_boolean.ki_gradvis_gjenoppvarming", "input_number.ki_gjenoppvarming_intervall_min", "input_text.ki_tariff_tabell", "input_number.ki_mal_trinn_kw", "input_number.ki_reserve_topp_kwh",
       "input_boolean.ki_tillat_dyrere_trinn",
@@ -471,6 +472,8 @@ class KiKlimaProCard extends HTMLElement {
   // Følg personenes hjelpere dynamisk (de heter time.ki_<key>_… og switch.ki_<key>_ferie)
   _personEntiteter() {
     const ut = [];
+    // lysregler: brytere og lysene selv
+    ((this._st("sensor.ki_lys") || { attributes: {} }).attributes.regler || []).forEach((r) => { ut.push(`input_boolean.ki_lys_${r.key}`); if (r.light) ut.push(r.light); });
     // søvnsensorer per person (binary_sensor.<key>_sover) så «sover (registrert)» oppdateres straks
     this._personer.forEach((p) => { if (p.type !== "voksen") ut.push(`binary_sensor.${p.key}_sover`); });
     // fysiske brytere kortet viser direkte
@@ -1150,15 +1153,15 @@ class KiKlimaProCard extends HTMLElement {
     if (!st) return "";
     const a = st.attributes;
     const poster = a.poster || {};
-    const ikon = { motor: "mdi:engine", gardiner: "mdi:curtains", hanklevarmer: "mdi:radiator", bereder: "mdi:water-boiler" };
-    const navn = { motor: "Varmestyring", gardiner: "Gardiner", hanklevarmer: "Håndklevarmer", bereder: "Bereder" };
+    const ikon = { motor: "mdi:engine", gardiner: "mdi:curtains", hanklevarmer: "mdi:radiator", bereder: "mdi:water-boiler", lys: "mdi:lightbulb-group-outline" };
+    const navn = { motor: "Varmestyring", gardiner: "Gardiner", hanklevarmer: "Håndklevarmer", bereder: "Bereder", lys: "Lys" };
     const maks = Math.max(1, ...Object.values(poster).map((p) => Math.max(p.kr || 0, p.potensial_kr || 0)));
     return `
       <div class="blokk">
         <div class="hode"><span>KI sparer${this._hj("sparing")}</span><span class="sub">${nf(Number(a.total_kr_maned || 0), 0)} kr · ${nf(Number(a.total_kwh_maned || 0), 1)} kWh denne måneden</span></div>
         ${this._hjTekst("sparing", a.merknad || "")}
         <div class="stor">${nf(Number(a.total_kr_maned || 0), 0)} <small>kr spart i ${new Date().toLocaleDateString("nb-NO", { month: "long" })}</small></div>
-        ${Object.entries(poster).filter(([k]) => k !== "gardiner" || this._har("gardiner")).filter(([k]) => k !== "hanklevarmer" || this._har("hanklevarmer")).map(([k, p]) => `
+        ${Object.entries(poster).filter(([k]) => k !== "gardiner" || this._har("gardiner")).filter(([k]) => k !== "hanklevarmer" || this._har("hanklevarmer")).filter(([k]) => k !== "lys" || (this._st("sensor.ki_lys") && (this._st("sensor.ki_lys").attributes.regler || []).length)).map(([k, p]) => `
         <div class="sparerad">
           <div class="radtekst"><div class="radnavn"><ha-icon icon="${ikon[k]}" class="hodeikon"></ha-icon> ${navn[k]}</div><div class="radsub">${esc(p.tekst || "")}</div></div>
           <div class="sparestolpe">
@@ -1168,6 +1171,29 @@ class KiKlimaProCard extends HTMLElement {
           <div class="radverdi kort">${nf(p.kr || 0, 0)} kr <small>${nf(p.kwh || 0, 1)} kWh</small>${p.potensial_kr > 0.5 ? `<div class="pot">+${nf(p.potensial_kr, 0)} kr mulig</div>` : ""}</div>
         </div>`).join("")}
         ${Number(a.gardin_kunne_spart_kr || 0) > 0.5 ? `<div class="notat"><ha-icon icon="mdi:lightbulb-on-outline" style="--mdc-icon-size:14px;vertical-align:-3px"></ha-icon> Gardinene sto åpne om natten i timer de burde vært lukket — ${nf(Number(a.gardin_kunne_spart_kr), 0)} kr til denne måneden hvis de lukkes.</div>` : ""}
+      </div>`;
+  }
+
+  // Lysregler: én bryter per regel, status og hva den sparer. Skjult uten regler.
+  _lysBlokk() {
+    const st = this._st("sensor.ki_lys");
+    const regler = st ? (st.attributes.regler || []) : [];
+    if (!regler.length) return "";
+    const k = (s) => ({ i_bruk: "ok", venter: "advarsel", slatt_av: "ok", satt: "ok", holder: "ok", manuell: "noytral",
+                        av: "noytral", av_lys: "noytral", utenfor: "noytral", mangler: "feil" })[s] || "noytral";
+    return `
+      <div class="blokk">
+        <div class="hode"><span>Lys${this._hj("lys")}</span><span class="sub">${nf(Number(st.attributes.spart_kr_maned || 0), 0)} kr spart denne måneden</span></div>
+        ${this._hjTekst("lys")}
+        ${regler.map((r) => `
+        <div class="rad">
+          <div class="prikk p-${k(r.status)}"></div>
+          <div class="radtekst">
+            <div class="radnavn">${esc(r.navn)} <span class="badge b-${r.type === "demp" ? "noytral" : "ok"}">${r.type === "demp" ? "nattdemping" : "glemt lys"}</span>${r.pa ? ' <span class="badge b-advarsel">på' + (r.pa_min ? " " + r.pa_min + " min" : "") + "</span>" : ""}</div>
+            <div class="radsub" data-entity="${esc(r.light)}">${esc(r.tekst || "")}</div></div>
+          <div class="bryter ${r.aktiv ? "on" : ""}" data-handling="veksle" data-entity="input_boolean.ki_lys_${esc(r.key)}"><span></span></div>
+        </div>`).join("")}
+        <div class="notat">Regler legges til under Konfigurer → Lys. Lys med nærværssensor slås bare av etter fravær; uten sensor etter lang på-tid i tidsvinduet.</div>
       </div>`;
   }
 
@@ -1531,6 +1557,7 @@ class KiKlimaProCard extends HTMLElement {
         <div class="hode"><span>${tittel}</span></div>
         ${liste.map(bryterRad).join("")}
       </div>`).join("")}
+      ${this._lysBlokk()}
       <div class="blokk">
         <div class="hode"><span>Varslinger</span>
           <span class="sub"><div class="bryter ${varslerPa ? "on" : ""}" data-handling="veksle" data-entity="input_boolean.ki_energi_varsler"><span></span></div></span></div>

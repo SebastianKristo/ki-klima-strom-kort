@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.6.1";
+const KI_PRO_VERSJON = "1.7.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -34,6 +34,7 @@ const FANER = [
   { id: "soner", navn: "Soner", icon: "mdi:home-thermometer" },
   { id: "energi", navn: "Energi", icon: "mdi:flash" },
   { id: "varmtvann", navn: "Vann og bad", icon: "mdi:water-boiler" },
+  { id: "lading", navn: "Elbillader", icon: "mdi:ev-plug-type2" },
   { id: "tanker", navn: "Tanker", icon: "mdi:head-cog" },
   { id: "oppsett", navn: "Oppsett", icon: "mdi:tune" },
   { id: "avansert", navn: "Avansert", icon: "mdi:wrench-cog" },
@@ -441,7 +442,7 @@ class KiKlimaProCard extends HTMLElement {
     this._rot.querySelectorAll(".fane").forEach((el) => el.classList.toggle("aktiv", el.dataset.fane === this._fane));
     this._tegnHero();
     const ut = { oversikt: "_oversikt", soner: "_soner", energi: "_energi",
-                 varmtvann: "_varmtvann", tanker: "_tanker", oppsett: "_oppsett",
+                 varmtvann: "_varmtvann", lading: "_lading", tanker: "_tanker", oppsett: "_oppsett",
                  avansert: "_avansert" }[this._fane];
     this._rot.getElementById("innhold").innerHTML = this[ut]();
     this._rot.querySelectorAll(".hode > span:first-child").forEach((sp) => {
@@ -1495,6 +1496,136 @@ class KiKlimaProCard extends HTMLElement {
 
   /* ---------------------------- Tanker ------------------------ */
 
+  /* Elbillader.
+   *
+   * Bilen er husets siste last: den får bare det varmen ikke bruker, og fortrenger
+   * aldri en ovn. Derfor er «Ledig nå» det tallet som forklarer alt annet på siden —
+   * står det 0,3 kW, lader den ikke, og det er ikke en feil.
+   *
+   * Alt leses fra `sensor.ki_lading_status`, som integrasjonen publiserer hvert tikk.
+   * Mangler den, er ladingen ikke satt opp, og vi sier det i stedet for å vise tomme
+   * rader.
+   */
+  _lading() {
+    const st = this._hass.states["sensor.ki_lading_status"];
+    if (!st) {
+      return `<div class="blokk">
+        <div class="hode"><span>Elbillader</span></div>
+        <div class="notat">Ladingen er ikke satt opp. Velg laderens bryter, bilens
+          ladeeffekt og knappene for ladestrøm under Utstyr i integrasjonens
+          innstillinger. Krever KI Energi 2.21.0 eller nyere.</div>
+      </div>`;
+    }
+    const a = (n, d) => this._a("sensor.ki_lading_status", n, d);
+    const handling = st.state;
+    const HANDLINGER = {
+      hold: ["Lader", "ok"], endre: ["Justerer", "ok"], start: ["Starter", "ok"],
+      stopp: ["Stopper", "advarsel"], av: ["Står", "noytral"],
+      manuell: ["Manuell", "noytral"], utilgjengelig: ["Svarer ikke", "feil"],
+      ingen: ["Ikke satt opp", "noytral"],
+    };
+    const [tekst, klasse] = HANDLINGER[handling] || [handling, "noytral"];
+
+    const trinn = a("trinn_a", null);
+    const malt = a("malt_kw", null);
+    const ledig = Number(a("ledig_kw", NaN));
+    const satt = a("satt_trinn_a", null);
+    const tilgjengelig = a("trinn_tilgjengelig", []) || [];
+    const sist = a("sist_endret", null);
+
+    /* Differansen mellom satt trinn og målt effekt er den interessante: er den stor,
+       tar bilen mindre enn den får lov til, og motoren har gitt resten til varmen. */
+    const forventet = satt ? Math.round(satt * 230) / 1000 : null;
+    const avvik = (forventet != null && malt != null) ? forventet - malt : null;
+
+    const klokke = (iso) => {
+      if (!iso) return "–";
+      const d = new Date(iso);
+      return isNaN(d) ? "–" : d.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+    };
+
+    return `
+      <div class="blokk">
+        <div class="hode"><span>Status</span><span class="sub">${esc(a("forklaring", ""))}</span></div>
+        <div class="rad rad-les">
+          <div class="prikk p-${klasse}"></div>
+          <div class="radtekst"><div class="radnavn">${esc(tekst)}
+            <span class="badge b-${klasse}">${esc(handling)}</span></div>
+            <div class="radsub">${trinn ? `Valgt trinn ${trinn} A` : "Ingen lading nå"}</div></div>
+          <div class="radverdi">${malt != null ? nf(Number(malt), 2) + " kW" : "–"}</div>
+        </div>
+        <div class="rad rad-les">
+          <div class="radtekst"><div class="radnavn">Ledig effekt</div>
+            <div class="radsub">Det varmen, berederen og marginen ikke bruker</div></div>
+          <div class="radverdi">${isFinite(ledig) ? nf(ledig, 2) + " kW" : "–"}</div>
+        </div>
+        ${avvik != null && Math.abs(avvik) >= 0.5 ? `
+        <div class="rad rad-les">
+          <div class="prikk p-advarsel"></div>
+          <div class="radtekst"><div class="radnavn">Bilen tar mindre enn den får</div>
+            <div class="radsub">Satt til ${satt} A (${nf(forventet, 2)} kW), tar
+              ${nf(Number(malt), 2)} kW — nesten full eller kald. Differansen er gitt
+              til varmen.</div></div>
+          <div class="radverdi kort">${nf(avvik, 2)} kW</div>
+        </div>` : ""}
+        <div class="rad rad-les">
+          <div class="radtekst"><div class="radnavn">Sist endret</div>
+            <div class="radsub">Hver endring gir bilen et lite avbrudd</div></div>
+          <div class="radverdi">${esc(klokke(sist))}</div>
+        </div>
+      </div>
+
+      <div class="blokk">
+        <div class="hode"><span>Trinnene</span><span class="sub">230 V enfase</span></div>
+        ${[5, 10, 16, 18].map((amp) => {
+          const kw = Math.round(amp * 230) / 1000;
+          const har = tilgjengelig.includes(amp);
+          const aktiv = satt === amp;
+          const passer = isFinite(ledig) && kw <= ledig;
+          return `<div class="rad rad-les ${har ? "" : "mangler"}">
+            <div class="prikk p-${aktiv ? "ok" : passer ? "noytral" : "feil"}"></div>
+            <div class="radtekst"><div class="radnavn">${amp} A
+              ${aktiv ? '<span class="badge b-ok">i bruk</span>' : ""}
+              ${har ? "" : '<span class="badge b-feil">mangler knapp</span>'}</div>
+              <div class="radsub">${har
+                ? (passer ? "Får plass i det ledige nå" : "For stort for det ledige nå")
+                : "Knappen er ikke satt opp i integrasjonen"}</div></div>
+            <div class="radverdi kort">${nf(kw, 2)} kW</div>
+          </div>`;
+        }).join("")}
+        <div class="notat">Ladestrømmen settes med knapper, ikke et tall. Motoren velger
+          det høyeste trinnet som holder seg under det ledige, og stopper ladingen når
+          ikke engang 5 A får plass.</div>
+      </div>
+
+      <div class="blokk">
+        <div class="hode"><span>Innstillinger</span></div>
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Automatikk</div>
+            <div class="radsub">Av = du styrer ladingen selv, motoren rører den ikke</div></div>
+          <div class="bryter ${a("automatikk", true) ? "on" : ""}"
+               data-handling="bryter" data-entity="input_boolean.ki_lading_automatikk"><span></span></div>
+        </div>
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Minste tid mellom endringer</div>
+            <div class="radsub">Hindrer at den justerer fram og tilbake</div></div>
+          <input class="tallfelt" type="number" min="1" max="30" step="1"
+                 data-entity="input_number.ki_lading_min_mellom_min"
+                 value="${esc(this._n("input_number.ki_lading_min_mellom_min", 5))}" />
+        </div>
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Dødbånd</div>
+            <div class="radsub">Nytt trinn velges bare når det gir mer enn dette</div></div>
+          <input class="tallfelt" type="number" min="0" max="2" step="0.1"
+                 data-entity="input_number.ki_lading_dodband_kw"
+                 value="${esc(this._n("input_number.ki_lading_dodband_kw", 0.6))}" />
+        </div>
+        <div class="notat">Begge sperrene er nødvendige fordi bilens effektsensor
+          oppdaterer seg ved hver strømendring: uten dem ville hver måling utløst en ny
+          endring, som utløste en ny måling.</div>
+      </div>`;
+  }
+
   _tanker() {
     const a = (n, d) => this._a("sensor.ki_energi_status", n, d);
     const laster = this._a("sensor.ki_laster", "laster", []) || [];
@@ -2538,6 +2669,15 @@ class KiKlimaProCard extends HTMLElement {
         border-radius:50%; background:#fff; transition: transform .18s; }
       .bryter.on span { transform: translateX(18px); }
       .bryter.mangler { opacity:.3; pointer-events:none; }
+
+      /* .tallfelt, ikke .tall: den klassen er alt i bruk for visningsboksene med
+         <b> og <span> i Energi-fanen, og ville gitt inndatafeltet feil form. */
+      .tallfelt { font-family:inherit; font-size:14.5px; font-weight:600; width:76px;
+        color: var(--gray1000, var(--primary-text-color)); background: rgba(128,128,128,.16);
+        border:none; border-radius:75px; padding:9px 12px; text-align:center;
+        -moz-appearance:textfield; }
+      .tallfelt::-webkit-outer-spin-button, .tallfelt::-webkit-inner-spin-button {
+        -webkit-appearance:none; margin:0; }
 
       .tid, .tekst { font-family:inherit; font-size:14.5px; font-weight:600;
         color: var(--gray1000, var(--primary-text-color)); background: rgba(128,128,128,.16);

@@ -1,58 +1,48 @@
-# KI Klima/Strøm-kort 1.6.1
+# KI Klima/Strøm-kort 1.7.0
 
-## Derfor så du ingen av endringene
+## Ny fane: Elbillader
 
-Kortet fantes også som en kopi inne i `ki-cards`. Samlefila der registrerer kort gjennom
-en innpakning som **hopper over elementer som alt er definert** — mens denne fila brukte
-rå `customElements.define`.
+Alt om ladingen på ett sted, mellom «Vann og bad» og «Tanker». Leser
+`sensor.ki_lading_status` fra KI Energi 2.21.0.
 
-Lastes ki-cards først i Lovelace-ressursene, vinner kopien der. Denne filas `define`
-kaster «has already been used», stille, midt i fila — og alt etter det punktet blir ikke
-kjørt. Du har altså kjørt kopien i ki-cards hele tiden, uansett hva som sto her.
+### Status
 
-Registreringen er nå beskyttet: i stedet for å kaste, skriver den i konsollen at kortet
-alt er definert av noe annet og at denne fila ikke er i bruk. En gammel kopi som ligger
-igjen blir da synlig i stedet for å være en gåte.
+Handling i klartekst med farget prikk — lader, justerer, stopper, står, manuell — og
+motorens egen forklaring som undertittel.
 
-**Kopien er fjernet fra ki-cards i 3.92.0.** Etter at begge er oppdatert, er denne fila
-den eneste som definerer kortet.
+**«Ledig effekt» er tallet som forklarer alt annet på siden.** Bilen er husets siste
+last: den får bare det varmen, berederen og marginen ikke bruker. Står det 0,3 kW, lader
+den ikke, og det er ikke en feil. Uten den linja ser en stoppet lading ut som noe som er
+galt.
 
----
+Er differansen mellom satt trinn og målt effekt over en halv kilowatt, kommer det en egen
+rad: «Bilen tar mindre enn den får». Det skjer når bilen er nesten full eller kald, og
+differansen er da gitt til varmen — verdt å se, ellers ser det ut som ladingen
+underpresterer.
 
-# KI Klima/Strøm-kort 1.6.0
+### Trinnene
 
-## Tilstedeværelse og bortestyring
+Alle fire — 5, 10, 16 og 18 A — med effekt ved 230 V enfase, og for hvert om det får
+plass i det ledige nå. Trinnet i bruk er merket, og et trinn uten knapp i integrasjonen
+merkes «mangler knapp» i stedet for bare å være borte.
 
-Ny blokk øverst i Oversikt. Er noen hjemme, ute en tur, eller borte siden helgen?
+### Innstillinger
 
-Integrasjonen skiller mellom de to siste — en tur på butikken skal ikke senke huset,
-bortreist skal — men skillet sto ingen steder i kortet.
+Automatikk av og på, minste tid mellom endringer, og dødbånd. Notatet forklarer hvorfor
+begge sperrene finnes: bilens effektsensor oppdaterer seg ved hver strømendring, så uten
+dem ville hver måling utløst en ny endring.
 
-Blokka leser `sensor.ki_tilstedevaerelse` (ny i KI Energi 2.20.0) og viser teksten med
-farge etter alvor: grønn når noen er hjemme, gul ved kort tur, blå ved bortemodus, dempet
-når tilstedeværelse er ukjent. Under står hvor lenge, og når hjemkomsten er satt til.
+### To detaljer i koden
 
-Ved kort tur står nedtellingen i teksten — «Ute en tur, 40 min — bortemodus om 5 t 20
-min». Det er det man vil vite når man er ute: hvor lang tid før huset senker seg.
+Tallfeltene fikk egen klasse `.tallfelt`. `.tall` var alt i bruk for visningsboksene med
+`<b>` og `<span>` i Energi-fanen, og ville gitt inndatafeltet feil form. Dette er de
+første `type="number"`-feltene i kortet; hendelseshåndtereren støttet dem allerede.
 
-Under teksten ligger **bortestyringen**, som manglet i Oversikt: bryterne for bortemodus,
-automatisk aktivering og hjemkomst, og de fire tallene — timer før auto, og
-bortetemperaturene for panelovn, gulvvarme og bad. Trykk på et tall åpner det.
+Entitetene skrives som `input_boolean.` og `input_number.` i malen, som resten av kortet,
+og `mapId` oversetter til integrasjonens `switch.` og `number.`.
 
-Blokka faller bort hvis sensoren ikke finnes, så kortet er uendret på en eldre
-integrasjonsversjon.
+### Kontrollert
 
-## «Helgemodus» heter «Bortemodus»
-
-Samme navnebytte som i KI Energi 2.19.0. På en hytte er det ukedagene den står tom, og
-navnet var grunnen til at bortestyringen ikke var å finne når man lette etter
-fraværstemperatur.
-
-Entitets-ID-ene er uendret — `input_boolean.ki_helgemodus` og de andre — så ingenting i
-dashbordene eller automasjonene brekker.
-
-## Merk
-
-Endringen er gjort i dette repoet. Kortet finnes også som en kopi inne i `ki-cards`, og
-de to har kommet ut av takt: kopien der står på et høyere versjonsnummer med en annen
-kodebase. Det er dette repoet Home Assistant laster, og det er her endringer hører.
+Fem tilstander tegnet: uten sensoren (forklarende notat i stedet for tomme rader), lader
+på 16 A, bilen som tar mindre enn den får, manglende knapp merket på to rader, og
+automatikk av med bryteren i riktig stilling.

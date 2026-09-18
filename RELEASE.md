@@ -1,3 +1,24 @@
+# KI Klima/Strøm-kort 1.6.1
+
+## Derfor så du ingen av endringene
+
+Kortet fantes også som en kopi inne i `ki-cards`. Samlefila der registrerer kort gjennom
+en innpakning som **hopper over elementer som alt er definert** — mens denne fila brukte
+rå `customElements.define`.
+
+Lastes ki-cards først i Lovelace-ressursene, vinner kopien der. Denne filas `define`
+kaster «has already been used», stille, midt i fila — og alt etter det punktet blir ikke
+kjørt. Du har altså kjørt kopien i ki-cards hele tiden, uansett hva som sto her.
+
+Registreringen er nå beskyttet: i stedet for å kaste, skriver den i konsollen at kortet
+alt er definert av noe annet og at denne fila ikke er i bruk. En gammel kopi som ligger
+igjen blir da synlig i stedet for å være en gåte.
+
+**Kopien er fjernet fra ki-cards i 3.92.0.** Etter at begge er oppdatert, er denne fila
+den eneste som definerer kortet.
+
+---
+
 # KI Klima/Strøm-kort 1.6.0
 
 ## Tilstedeværelse og bortestyring

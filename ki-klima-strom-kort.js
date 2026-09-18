@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.6.0";
+const KI_PRO_VERSJON = "1.6.1";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -2603,7 +2603,21 @@ class KiKlimaProCard extends HTMLElement {
   }
 }
 
-customElements.define("ki-klima-pro-card", KiKlimaProCard);
+/* Beskyttet registrering.
+ *
+ * Kortet fantes også som en kopi inne i `ki-cards`, og den samlefila hopper over
+ * elementer som alt er definert. Lastet ki-cards først, vant kopien der — og denne
+ * `define` kastet «already been used», stille, midt i fila. Alt etter dette punktet ble
+ * da ikke kjørt.
+ *
+ * Nå sier vi det høyt i stedet for å kaste, slik at en gammel kopi som ligger igjen er
+ * synlig i konsollen og ikke en gåte. */
+if (customElements.get("ki-klima-pro-card")) {
+  console.warn("ki-klima-strom-kort: ki-klima-pro-card er allerede definert av noe annet "
+    + "— sannsynligvis en gammel kopi i ki-cards. Denne fila er da IKKE i bruk.");
+} else {
+  customElements.define("ki-klima-pro-card", KiKlimaProCard);
+}
 
 /* ------------------------------------------------------------------ */
 

@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.8.0";
+const KI_PRO_VERSJON = "1.10.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -1264,12 +1264,12 @@ class KiKlimaProCard extends HTMLElement {
                                           ["input_datetime.ki_hanklevarmer_kveld_start", "input_datetime.ki_hanklevarmer_kveld_slutt", "ok", "Kveld"]] },
         ])}
         <div class="undertittel">Morgen</div>
-        ${this._tidRad("input_datetime.ki_hanklevarmer_morgen_start", "Fra")}
-        ${this._tidRad("input_datetime.ki_hanklevarmer_morgen_slutt", "Til")}
-        <div class="undertittel" style="padding-top:10px">Kveld</div>
-        ${this._tidRad("input_datetime.ki_hanklevarmer_kveld_start", "Fra")}
-        ${this._tidRad("input_datetime.ki_hanklevarmer_kveld_slutt", "Til")}
-        <div class="undertittel" style="padding-top:10px">Sikkerhet</div>
+        ${this._tidPar("Fra", "input_datetime.ki_hanklevarmer_morgen_start",
+                       "Til", "input_datetime.ki_hanklevarmer_morgen_slutt")}
+        <div class="undertittel" style="padding-top:6px">Kveld</div>
+        ${this._tidPar("Fra", "input_datetime.ki_hanklevarmer_kveld_start",
+                       "Til", "input_datetime.ki_hanklevarmer_kveld_slutt")}
+        <div class="undertittel" style="padding-top:8px">Sikkerhet</div>
         ${this._stepperRad("input_number.ki_hanklevarmer_maks_pa_tid", "Slå av etter", 0, " min")}
         ${this._stepperRad("input_number.ki_hanklevarmer_effekt_w", "Effekt når den er på", 0, " W")}
         <div class="notat">Utenfor vinduene kan den slås på manuelt; da slås den av igjen etter maks på-tid. I rød effektsone utsettes starten noen minutter.</div>
@@ -1687,7 +1687,7 @@ class KiKlimaProCard extends HTMLElement {
 
       <div class="blokk">
         <div class="hode"><span>Trinnene</span><span class="sub">230 V enfase</span></div>
-        ${[5, 10, 16, 18].map((amp) => {
+        ${[5, 10, 16].map((amp) => {
           const kw = Math.round(amp * 230) / 1000;
           const har = tilgjengelig.includes(amp);
           const aktiv = satt === amp;
@@ -1733,6 +1733,45 @@ class KiKlimaProCard extends HTMLElement {
         <div class="notat">Begge sperrene er nødvendige fordi bilens effektsensor
           oppdaterer seg ved hver strømendring: uten dem ville hver måling utløst en ny
           endring, som utløste en ny måling.</div>
+      </div>
+
+      ${this._elbilVindu()}`;
+  }
+
+  /* Ladevinduet, flyttet hit fra Oppsett.
+   *
+   * Det hører sammen med resten av ladingen, ikke blant husets øvrige innstillinger.
+   * Men merk at det er noe annet enn styringen over: dette er vinduet motoren HOLDER AV
+   * effekt i når laderen ikke er smart, altså en reservasjon i budsjettet. Styringen
+   * over er den aktive, som setter ladestrøm selv.
+   *
+   * Begge kan være i bruk samtidig — reservasjonen sørger for at prognosen vet at bilen
+   * kommer til å trekke, mens styringen håndterer selve ladingen. Derfor står de på
+   * samme side nå.
+   */
+  _elbilVindu() {
+    if (!this._har("elbil")) return "";
+    return `
+      <div class="blokk">
+        <div class="hode"><span>Ladevindu</span>
+          <span class="sub">${this._tidKort("input_datetime.ki_elbil_fra")}–${
+            this._tidKort("input_datetime.ki_elbil_til")}</span></div>
+        ${this._dognplan([{ navn: "Lading", spenn: [["input_datetime.ki_elbil_fra",
+          "input_datetime.ki_elbil_til", "s", "Elbil"]] }])}
+        ${this._tidPar("Lader fra", "input_datetime.ki_elbil_fra",
+                       "Til", "input_datetime.ki_elbil_til")}
+        ${this._stepperRad("input_number.ki_elbil_effekt_kw", "Ladeeffekt", 1, " kW")}
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Lader om natten</div>
+            <div class="radsub">Motoren holder av effekt i vinduet</div></div>
+          <div class="bryter ${this._pa("input_boolean.ki_elbil_natt") ? "on" : ""}
+               ${this._st("input_boolean.ki_elbil_natt") ? "" : "mangler"}"
+               data-handling="veksle" data-entity="input_boolean.ki_elbil_natt"><span></span></div>
+        </div>
+        <div class="notat">Dette er reservasjonen i effektbudsjettet for en lader som
+          ikke styres av KI — noe annet enn styringen over, som setter ladestrøm selv.
+          5 A på tre faser (400 V) ≈ 3,5 kW, på én fase (230 V) ≈ 1,2 kW. Når
+          lastprofilen har lært natten, teller halvparten.</div>
       </div>`;
   }
 
@@ -1831,9 +1870,7 @@ class KiKlimaProCard extends HTMLElement {
         ["input_boolean.ki_helg_senk_gulvvarme", this._l("Helg senk gulvvarme"), "Gulvvarmen senkes også i helgemodus"],
         ["input_boolean.ki_sommer_auto", "Sommermodus automatisk", "Etter måned og utetemperatur"],
       ]],
-      ...(this._har("elbil") ? [["Elbil", [
-        ["input_boolean.ki_elbil_natt", "Elbil lader om natten", "Laderen er ikke smart — motoren holder av effekt i ladevinduet"],
-      ]]] : []),
+      // «Elbil» er flyttet til Elbillader-fanen, der resten av ladingen står.
       ["Vann og bad", [
         ...(this._har("vvb_bryter") ? [["input_boolean.ki_vvb_prisstyring", "VVB prisstyring", "Velger de billigste timene"],
                                       ["input_boolean.ki_vvb_alltid_pa", "VVB alltid på", "Kobler ut prisstyringen"]] : []),
@@ -1917,14 +1954,6 @@ class KiKlimaProCard extends HTMLElement {
           <div class="bryter ${this._pa(`input_boolean.ki_${p.key}_ferie`) ? "on" : ""}" data-handling="veksle" data-entity="input_boolean.ki_${p.key}_ferie"><span></span></div>
         </div>
       </div>`).join("")}
-      ${this._har("elbil") ? `
-      <div class="blokk">
-        <div class="hode"><span>Elbil</span><span class="sub">${this._tidKort("input_datetime.ki_elbil_fra")}–${this._tidKort("input_datetime.ki_elbil_til")}</span></div>
-        ${this._dognplan([{ navn: "Lading", spenn: [["input_datetime.ki_elbil_fra", "input_datetime.ki_elbil_til", "s", "Elbil"]] }])}
-        ${this._tidPar("Lader fra", "input_datetime.ki_elbil_fra", "Til", "input_datetime.ki_elbil_til")}
-        ${this._stepperRad("input_number.ki_elbil_effekt_kw", "Ladeeffekt", 1, " kW")}
-        <div class="notat">5 A på tre faser (400 V) ≈ 3,5 kW, på én fase (230 V) ≈ 1,2 kW. Når lastprofilen har lært natten, teller halvparten.</div>
-      </div>` : ""}
       <div class="blokk">
         <div class="hode"><span>Stue og vindu</span></div>
         ${this._tidRad("input_datetime.ki_stue_reduksjon_fra", "Stue reduksjon fra")}

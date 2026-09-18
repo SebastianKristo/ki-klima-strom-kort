@@ -1,52 +1,37 @@
-# KI Klima/Strøm-kort 1.8.0
+# KI Klima/Strøm-kort 1.10.0
 
-## Fuktstyringen mangler ikke lenger i kortet
+## Elbil-seksjonen er flyttet fra Oppsett til Elbillader-fanen
 
-Fuktstyringen kom i KI Energi 2.23.0, men kortet viste den aldri. Innstillingene fantes
-bare som entiteter man måtte finne selv.
+Ladevinduet sto blant husets øvrige innstillinger, langt fra resten av ladingen. Nå står
+det nederst i Elbillader-fanen: døgnplan, «Lader fra – Til», ladeeffekt, og bryteren
+«Lader om natten» som lå som en løsrevet linje i Oppsett.
 
-Ny blokk «Etter dusj» under Vann og bad → Håndklevarmer.
+Elbillader-fanen har nå fire blokker: Status, Trinnene, Innstillinger og Ladevindu.
 
-**Blokka vises bare når en fuktsensor er valgt i integrasjonen.** Er den ikke det, er hele
-funksjonen utilgjengelig, og tre innstillinger som ikke kan virke er verre enn ingen.
+### De to er ikke det samme, og notatet sier det nå
 
-### Status øverst
+Ladevinduet er **reservasjonen i effektbudsjettet** for en lader som ikke styres av KI:
+motoren holder av effekt i vinduet så prognosen vet at bilen kommer til å trekke.
 
-Fukten nå, med en tilstand i klartekst: «Tørt på badet», «Fuktig — teller ned», eller
-«Tørker håndklær» når vinduet er åpent. Er vinduet åpent, står minuttene som er igjen i
-overskriften i stedet for fuktprosenten.
+Styringen over er den **aktive**, som setter ladestrøm selv etter hvor mye som er ledig.
 
-Under kommer en **målebar** som viser hvor langt fukten er fra å utløse, oransje når
-grensen er passert. Et tall alene sier lite når man ikke vet hva som er høyt på nettopp
-dette badet — 62 % kan være tørt ett sted og nesten utløsende et annet.
+Begge kan være i bruk samtidig, og det er nettopp derfor de hører hjemme på samme side.
+Sto de på hver sin fane, var det lett å tro at den ene erstattet den andre.
 
-Baren skjules når vinduet alt er åpent; da er fukten ikke lenger det som avgjør.
-
-### Innstillingene
-
-Bryteren for å slå på funksjonen, fuktgrensen, hvor mange minutter fukten må holde seg
-over, og hvor mange timer varmeren står på.
-
-Notatet forklarer hvorfor «sammenhengende» er poenget: et øyeblikksmål ville slått på
-varmeren hver gang noen vasker hendene, og det som skiller en dusj er at fukten blir
-stående.
-
-### Kontrollert
-
-Seks tilstander: uten fuktsensor (ingen blokk i det hele tatt), tørt, på vei opp, over
-grensen, i vindu med minutter igjen, og sensor uten måling. Baren fyller riktig andel og
-blir oransje først over grensen.
+Blokka vises bare når `elbil` er satt i integrasjonen, som før.
 
 ---
 
-# KI Klima/Strøm-kort 1.7.1
+# KI Klima/Strøm-kort 1.9.0
 
-Elbillader-fanen skjules når laderen ikke er satt opp, styrt av flagget `lading` fra
-`sensor.ki_energi_status`. Står man i fanen når den forsvinner, faller kortet tilbake til
-Oversikt.
+18 A fjernet fra trinnlista. Dusjvinduene komprimert til to rader med Fra og Til på samme
+linje.
 
-# KI Klima/Strøm-kort 1.7.0
+# KI Klima/Strøm-kort 1.8.0
 
-Ny fane Elbillader: status med ledig effekt, varsel når bilen tar mindre enn den får, alle
-fire trinn med om de får plass, og innstillingene for automatikk, minste tid mellom
-endringer og dødbånd.
+Ny blokk «Etter dusj» under Håndklevarmer, med fukten nå, målebar mot grensen og
+innstillingene.
+
+# KI Klima/Strøm-kort 1.7.x
+
+Elbillader-fanen, som skjules når laderen ikke er satt opp.

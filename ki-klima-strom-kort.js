@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.7.1";
+const KI_PRO_VERSJON = "1.8.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -1121,6 +1121,92 @@ class KiKlimaProCard extends HTMLElement {
       </div>`;
   }
 
+  /* Fuktstyring etter dusj.
+   *
+   * Blokka vises bare når en fuktsensor er valgt i integrasjonen. Er den ikke det, er
+   * hele funksjonen utilgjengelig, og tre innstillinger som ikke kan virke er verre enn
+   * ingen.
+   *
+   * Statussensoren publiserer `fukt_styring`, `fukt_na`, `fukt_grense`, `i_fuktvindu`
+   * og `fukt_til` fra KI Energi 2.23.0.
+   */
+  _fuktBlokk(a) {
+    const harSensor = a("fukt_styring", null) !== null
+      || this._st("input_boolean.ki_hanklevarmer_fukt");
+    if (!harSensor) return "";
+
+    const pa = this._pa("input_boolean.ki_hanklevarmer_fukt");
+    const fukt = Number(a("fukt_na", NaN));
+    const grense = Number(a("fukt_grense", this._n("input_number.ki_hanklevarmer_fukt_grense", 70)));
+    const iVindu = !!a("i_fuktvindu", false);
+    const til = a("fukt_til", null);
+
+    let igjen = null;
+    if (til) {
+      const d = new Date(til);
+      if (!isNaN(d)) igjen = Math.max(0, Math.round((d - Date.now()) / 60000));
+    }
+
+    /* Målebaren viser hvor langt fukten er fra å utløse. Et tall alene sier lite når
+       man ikke vet hva som er høyt på nettopp dette badet. */
+    const andel = isFinite(fukt) && grense ? Math.max(0, Math.min(100, (fukt / grense) * 100)) : null;
+
+    return `
+      <div class="blokk">
+        <div class="hode"><span>Etter dusj</span>
+          <span class="sub">${iVindu && igjen !== null ? `${igjen} min igjen`
+            : isFinite(fukt) ? `${nf(fukt, 0)} % nå` : "Ingen måling"}</span></div>
+
+        ${isFinite(fukt) ? `
+        <div class="rad rad-les">
+          <div class="prikk p-${iVindu ? "ok" : fukt >= grense ? "advarsel" : "noytral"}"></div>
+          <div class="radtekst">
+            <div class="radnavn">${iVindu ? "Tørker håndklær"
+              : fukt >= grense ? "Fuktig — teller ned" : "Tørt på badet"}</div>
+            <div class="radsub">${iVindu
+              ? `Vinduet står til fukten har lagt seg og håndklærne er tørre`
+              : `Utløser ved ${nf(grense, 0)} %`}</div>
+          </div>
+          <div class="radverdi">${nf(fukt, 0)} %</div>
+        </div>
+        ${andel !== null && !iVindu ? `<div class="fuktbar">
+          <i style="width:${andel.toFixed(0)}%" class="${fukt >= grense ? "over" : ""}"></i>
+        </div>` : ""}` : ""}
+
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Slå på etter dusj</div>
+            <div class="radsub">Krever at fukten holder seg over grensen</div></div>
+          <div class="bryter ${pa ? "on" : ""} ${this._st("input_boolean.ki_hanklevarmer_fukt") ? "" : "mangler"}"
+               data-handling="veksle" data-entity="input_boolean.ki_hanklevarmer_fukt"><span></span></div>
+        </div>
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Fuktgrense</div>
+            <div class="radsub">Hvor fuktig det må bli</div></div>
+          <input class="tallfelt" type="number" min="40" max="95" step="1"
+                 data-entity="input_number.ki_hanklevarmer_fukt_grense"
+                 value="${esc(this._n("input_number.ki_hanklevarmer_fukt_grense", 70))}" />
+        </div>
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Varighet over grensen</div>
+            <div class="radsub">Minutter sammenhengende før den slår på</div></div>
+          <input class="tallfelt" type="number" min="1" max="30" step="1"
+                 data-entity="input_number.ki_hanklevarmer_fukt_minutter"
+                 value="${esc(this._n("input_number.ki_hanklevarmer_fukt_minutter", 3))}" />
+        </div>
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Står på i</div>
+            <div class="radsub">Timer etter at vinduet åpnet</div></div>
+          <input class="tallfelt" type="number" min="0.5" max="8" step="0.5"
+                 data-entity="input_number.ki_hanklevarmer_fukt_timer"
+                 value="${esc(this._n("input_number.ki_hanklevarmer_fukt_timer", 2))}" />
+        </div>
+        <div class="notat">Fukten må ligge over grensen sammenhengende. Et øyeblikksmål
+          ville slått på varmeren hver gang noen vasker hendene — det som skiller en dusj
+          er at fukten blir stående. Faller den under før tiden er ute, teller den fra
+          null igjen.</div>
+      </div>`;
+  }
+
   _handkleKort() {
     const a = (k, d) => this._a("sensor.ki_hanklevarmer", k, d);
     const konfigurert = !!a("bryter", "");
@@ -1161,6 +1247,7 @@ class KiKlimaProCard extends HTMLElement {
         ${naerMaks ? `<div class="varsel">Har stått på i ${minutter} minutter.
           Sikkerhetsavstengingen slår inn ved ${nf(maks, 0)} minutter.</div>` : ""}
       </div>
+      ${this._fuktBlokk(a)}
       <div class="blokk">
         <div class="hode"><span>KI sparer</span><span class="sub">${nf(Number(a("spart_kr_maned", 0)), 0)} kr denne måneden</span></div>
         <div class="tallrad">
@@ -2692,6 +2779,12 @@ class KiKlimaProCard extends HTMLElement {
         border-radius:50%; background:#fff; transition: transform .18s; }
       .bryter.on span { transform: translateX(18px); }
       .bryter.mangler { opacity:.3; pointer-events:none; }
+
+      .fuktbar { height:6px; border-radius:99px; background:rgba(128,128,128,.2);
+        overflow:hidden; margin:2px 4px 6px; }
+      .fuktbar i { display:block; height:100%; border-radius:99px;
+        background: var(--blue, #4a9df8); transition:width .6s cubic-bezier(.2,.8,.2,1); }
+      .fuktbar i.over { background: var(--orange, #f0a952); }
 
       /* .tallfelt, ikke .tall: den klassen er alt i bruk for visningsboksene med
          <b> og <span> i Energi-fanen, og ville gitt inndatafeltet feil form. */

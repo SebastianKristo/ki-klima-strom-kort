@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.5.0";
+const KI_PRO_VERSJON = "1.6.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -395,7 +395,7 @@ class KiKlimaProCard extends HTMLElement {
       "input_datetime.ki_hanklevarmer_morgen_start", "input_datetime.ki_hanklevarmer_morgen_slutt",
       "input_datetime.ki_hanklevarmer_kveld_start", "input_datetime.ki_hanklevarmer_kveld_slutt",
       "sensor.strommaler_imported_energy", "sensor.ki_beslutningslogg",
-      "input_boolean.ki_helg_venter_svar",
+      "input_boolean.ki_helg_venter_svar", "sensor.ki_tilstedevaerelse",
     ]);
     TIMESMALER_KANDIDATER.forEach((id) => this._fulgt.add(id));
     Object.values(SONE_STYR).forEach((n) => this._fulgt.add(`input_boolean.${n}`));
@@ -591,10 +591,88 @@ class KiKlimaProCard extends HTMLElement {
 
   /* ---------------------------- Oversikt ---------------------- */
 
+  /* Tilstedeværelse: er noen hjemme, ute en tur, eller borte siden helgen?
+   *
+   * Integrasjonen skiller mellom de to siste — en tur på butikken skal ikke senke
+   * huset, bortreist skal — men skillet sto ingen steder i kortet. Nå står det i
+   * klartekst med hvor lenge, og bortestyringen ligger rett under.
+   *
+   * Krever `sensor.ki_tilstedevaerelse` fra KI Energi 2.20.0. Mangler den, faller
+   * blokka bort og kortet er som før.
+   */
+  _tilstedeBlokk() {
+    const st = this._st("sensor.ki_tilstedevaerelse");
+    if (!st) return "";
+    const at = st.attributes || {};
+    const tilstand = st.state;
+    const tekst = at.tekst || tilstand;
+
+    const klasse = { hjemme: "pa", hjemkomst: "pa", kort_tur: "gul",
+      borte: "gul", borte_lenge: "borte", ukjent: "mangler" }[tilstand] || "";
+    const ikon = { hjemme: "mdi:home-account", hjemkomst: "mdi:home-import-outline",
+      kort_tur: "mdi:walk", borte: "mdi:home-export-outline",
+      borte_lenge: "mdi:bag-suitcase", ukjent: "mdi:help-circle-outline" }[tilstand]
+      || "mdi:home-account";
+
+    const min = Number(at.minutter_borte);
+    const varighet = !isFinite(min) ? null
+      : min >= 1440 ? `${Math.floor(min / 1440)} døgn ${Math.floor((min % 1440) / 60)} t`
+      : min >= 60 ? `${Math.floor(min / 60)} t ${min % 60} min`
+      : `${min} min`;
+
+    const brikker = [
+      ["input_boolean.ki_helgemodus", this._l("Bortemodus"), "mdi:bag-suitcase"],
+      ["input_boolean.ki_helg_auto", this._l("Slå på automatisk"), "mdi:timer-sand"],
+      ["input_boolean.ki_hjemkomst_aktiv", this._l("Hjemkomst"), "mdi:home-import-outline"],
+    ];
+    const tall = [
+      ["input_number.ki_helg_auto_timer", "Timer før auto", " t"],
+      ["input_number.ki_temp_helg", "Borte panelovn", "°"],
+      ["input_number.ki_temp_helg_gulvvarme", "Borte gulv", "°"],
+      ["input_number.ki_temp_helg_bad", "Borte bad", "°"],
+    ].filter(([id]) => this._st(id));
+
+    return `
+      <div class="blokk">
+        <div class="hode"><span>Tilstedeværelse</span>${at.venter_svar
+          ? `<span class="sub">Venter på svar om helgen</span>` : ""}</div>
+        <div class="tilstede ${klasse}" data-handling="mer"
+             data-entity="sensor.ki_tilstedevaerelse">
+          <div class="chipikon"><ha-icon icon="${ikon}"></ha-icon></div>
+          <div style="min-width:0">
+            <div class="tstor">${esc(tekst)}</div>
+            <div class="tsub">${varighet ? `Borte i ${esc(varighet)}` : ""}${
+              varighet && at.hjemkomst_tid ? " · " : ""}${
+              at.hjemkomst_tid ? `Hjemkomst kl. ${esc(at.hjemkomst_tid)}` : ""}</div>
+          </div>
+        </div>
+        <div class="rutenett" style="margin-top:8px">
+          ${brikker.map(([id, navn, ik]) => {
+            const på = this._pa(id);
+            return `<div class="chip ${på ? "pa" : ""} ${this._st(id) ? "" : "mangler"}"
+              data-handling="veksle" data-entity="${id}">
+              <div class="chipikon"><ha-icon icon="${ik}"></ha-icon></div>
+              <div><div class="chipnavn">${navn}</div>
+                <div class="chipsub">${på ? "På" : "Av"}</div></div>
+            </div>`;
+          }).join("")}
+        </div>
+        ${tall.length ? `<div class="tallrad fire" style="margin-top:8px">${
+          tall.map(([id, navn, enhet]) => {
+            const v = this._n(id);
+            return `<div class="tall trykk" data-handling="mer" data-entity="${id}">
+              <b>${isFinite(v) ? nf(v, Number.isInteger(v) ? 0 : 1) : "–"}${esc(enhet)}</b>
+              <span>${esc(navn)}</span></div>`;
+          }).join("")}</div>` : ""}
+      </div>`;
+  }
+
   _oversikt() {
     const a = (n, d) => this._a("sensor.ki_energi_status", n, d);
     const modus = [
-      ["input_boolean.ki_helgemodus", this._l("Helgemodus"), "mdi:bag-suitcase", true],
+      /* «Bortemodus», ikke «Helgemodus». På en hytte er det ukedagene den står tom,
+         og navnet er grunnen til at bortestyringen ikke er å finne når man leter. */
+      ["input_boolean.ki_helgemodus", this._l("Bortemodus"), "mdi:bag-suitcase", true],
       ["input_boolean.ki_sommermodus", "Sommermodus", "mdi:white-balance-sunny", true],
       ["input_boolean.ki_hjemkomst_aktiv", this._l("Hjemkomst"), "mdi:home-import-outline", true],
       ...this._personer.filter((p) => p.type === "ungdom").map((p) => [`input_boolean.ki_${p.key}_ferie`, `${p.navn} ferie`, "mdi:school-outline", true]),
@@ -607,6 +685,7 @@ class KiKlimaProCard extends HTMLElement {
 
     return `
       ${this._overtakelse(true)}
+      ${this._tilstedeBlokk()}
       ${this._leggetidBlokk()}
       ${this._budsjettBlokk(a)}
       <div class="blokk">
@@ -2367,6 +2446,17 @@ class KiKlimaProCard extends HTMLElement {
         padding-left:4px; border-radius:75px; cursor:pointer; background: rgba(128,128,128,.12);
         transition: background .18s, color .18s; }
       .chip.pa { background: var(--active-big, var(--primary-color)); color: var(--gray100,#fafbfc); }
+      /* tilstedeværelse */
+      .tilstede { display:flex; align-items:center; gap:13px; padding:12px 14px;
+        border-radius:20px; background: rgba(128,128,128,.12); cursor:pointer; min-width:0; }
+      .tilstede.pa { background: color-mix(in srgb, var(--green,#5ad18b) 24%, transparent); }
+      .tilstede.gul { background: color-mix(in srgb, var(--orange,#f0a952) 26%, transparent); }
+      .tilstede.borte { background: color-mix(in srgb, var(--blue,#4aa3e0) 24%, transparent); }
+      .tilstede.mangler { opacity:.55; }
+      .tilstede .tstor { font-size:15px; font-weight:600; line-height:1.35; }
+      .tilstede .tsub { font-size:12px; opacity:.6; margin-top:2px; }
+      .tall.trykk { cursor:pointer; }
+
       .chipikon { width:50px; height:50px; border-radius:50%; display:flex; align-items:center;
         justify-content:center; background: rgba(128,128,128,.16); }
       .chipikon ha-icon { --mdc-icon-size:22px; }

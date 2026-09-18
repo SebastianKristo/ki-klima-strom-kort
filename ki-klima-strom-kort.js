@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.7.0";
+const KI_PRO_VERSJON = "1.7.1";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -406,7 +406,7 @@ class KiKlimaProCard extends HTMLElement {
       <ha-card><div class="wrap">
         ${this._config.title ? `<div class="tittel">${esc(this._config.title)}</div>` : ""}
         <div id="hero"></div>
-        <div class="faner">${FANER.map((f) => `
+        <div class="faner">${this._faner().map((f) => `
           <div class="fane" data-handling="fane" data-fane="${f.id}">
             <ha-icon icon="${f.icon}"></ha-icon><span>${f.navn}</span>
           </div>`).join("")}</div>
@@ -439,6 +439,8 @@ class KiKlimaProCard extends HTMLElement {
 
   _tegn() {
     if (!this._hass || !this._bygd) return;
+    // Fanen kan forsvinne mens man står i den — da havner man på en tom side.
+    if (this._fane === "lading" && !this._harLading()) this._fane = "oversikt";
     this._rot.querySelectorAll(".fane").forEach((el) => el.classList.toggle("aktiv", el.dataset.fane === this._fane));
     this._tegnHero();
     const ut = { oversikt: "_oversikt", soner: "_soner", energi: "_energi",
@@ -470,6 +472,27 @@ class KiKlimaProCard extends HTMLElement {
   get _personer() { return this._a("sensor.ki_energi_status", "personer", []) || []; }
   _ent(k) { return (this._a("sensor.ki_energi_status", "entiteter", {}) || {})[k] || ""; }
   _har(feature) { return !!this._a("sensor.ki_energi_status", feature, true); }
+
+  /* Fanene som gjelder for denne installasjonen.
+   *
+   * Elbillader-fanen vises bare når laderen faktisk er satt opp i KI Energi. Motoren
+   * publiserer flagget `lading` i `sensor.ki_energi_status`, og det betyr noe annet enn
+   * `elbil`: det siste sier at huset har elbil, det første at laderen er koblet til
+   * integrasjonen. Kortet trenger det første.
+   *
+   * Standarden i `_har` er `true`, så en eldre integrasjon som ikke kjenner flagget
+   * ville vist fanen. Derfor spør vi her om flagget FINNES, og faller tilbake på om
+   * statussensoren for ladingen er der — begge må svare nei før fanen skjules. */
+  _faner() {
+    return FANER.filter((f) => f.id !== "lading" || this._harLading());
+  }
+
+  _harLading() {
+    const flagg = this._a("sensor.ki_energi_status", "lading", null);
+    if (flagg !== null && flagg !== undefined) return !!flagg;
+    const st = this._st("sensor.ki_lading_status");
+    return !!st && !["ingen", "unavailable", "unknown"].includes(st.state);
+  }
   // Følg personenes hjelpere dynamisk (de heter time.ki_<key>_… og switch.ki_<key>_ferie)
   _personEntiteter() {
     const ut = [];

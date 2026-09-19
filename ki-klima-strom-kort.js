@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.15.0";
+const KI_PRO_VERSJON = "1.15.1";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -807,7 +807,6 @@ class KiKlimaProCard extends HTMLElement {
 
     return `
       ${this._overtakelse(true)}
-      ${this._borteInnstillinger()}
       ${this._leggetidBlokk()}
       ${this._budsjettBlokk(a)}
       <div class="blokk">
@@ -844,6 +843,7 @@ class KiKlimaProCard extends HTMLElement {
             <div class="radsub">${esc(l.forklaring || "")}</div></div>
           <div class="radverdi">${nf(l.settpunkt, 1)}°</div></div>`).join("")}
       </div>` : ""}
+      ${this._borteInnstillinger()}
       ${this._vvbKort(true)}`;
   }
 

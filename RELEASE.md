@@ -1,28 +1,21 @@
-# KI Klima/Strøm-kort 1.15.0
+# KI Klima/Strøm-kort 1.15.1
 
-## «Etter dusj» vises bare når fuktsensoren er satt opp
+## Bortemodus flyttet ned i Oversikt
 
-Blokka sto der alltid, med tre innstillinger som ikke kunne virke.
+Blokka lå nest øverst, rett under heroen. Nå står den mellom **Modus** og **Varmtvann**.
 
-Sjekken min var sann uansett, på to måter samtidig: `fukt_styring` er `false` og ikke
-`null` når sensoren mangler, og bryteren `ki_hanklevarmer_fukt` lages alltid av
-integrasjonen — så begge leddene i `||` slo til.
+Det henger bedre sammen: modusbryterne står rett over, og bortetemperaturene er
+finjusteringen av det man nettopp slo på. Øverst konkurrerte den med budsjettet og
+tiltakene, som er det man faktisk ser etter når man åpner kortet.
 
-Nå brukes `har_fuktsensor` fra KI Energi 2.27.0, som sier om en sensor faktisk er valgt.
-Er du på en eldre versjon uten attributtet, faller kortet tilbake på om det finnes en
-fuktmåling — den finnes bare når en sensor er satt opp.
+Rekkefølgen i Oversikt er nå: overtakelse, leggetid, budsjett, forventet effekt, modus,
+tiltak akkurat nå, **bortemodus**, varmtvann.
 
-Tre innstillinger som ikke kan virke er verre enn ingen, og verst når man ikke ser at de
-ikke virker.
-
-### Kontrollert
-
-Ny integrasjon: uten sensor skjult, med sensor vist både når styringen er av og på.
-Eldre integrasjon: skjult uten måling, vist med måling.
+Kontrollert: blokka står ett sted, etter Modus og før Varmtvann.
 
 ---
 
-# KI Klima/Strøm-kort 1.14.2
+# KI Klima/Strøm-kort 1.15.0
 
-Fanerada i Vann og bad har søvnpopupens fylte form, og en feil der håndklevarmeren ble
-vist uten at fanen fantes er rettet.
+«Etter dusj» vises bare når fuktsensoren faktisk er satt opp. Krever KI Energi 2.27.0 for
+`har_fuktsensor`, med fallback på eldre.

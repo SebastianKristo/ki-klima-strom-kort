@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.15.1";
+const KI_PRO_VERSJON = "1.17.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -542,9 +542,9 @@ class KiKlimaProCard extends HTMLElement {
       <div class="husscene ${borte ? "borte" : "hjemme"}">
         <svg viewBox="0 0 160 150" aria-hidden="true">
           <g class="varme">
-            ${[46, 80, 114].map((x) => [0, 1, 2].map((k) => `
-              <path class="b${k}" d="M${x - 13} ${46 - k * 20} q13 -12 26 0"
-                    style="animation-delay:${(k * 0.5 + x / 200).toFixed(2)}s"/>`).join("")).join("")}
+            ${[46, 80, 114].map((x, xi) => [0, 1, 2].map((k) => `
+              <path d="M${x - 13} ${46 - k * 20} q13 -12 26 0"
+                    style="--i:${k + xi * 0.33}"/>`).join("")).join("")}
           </g>
           <path class="tak" d="M14 70 L80 18 L146 70 z"/>
           <rect class="vegg" x="28" y="70" width="104" height="58" rx="4"/>
@@ -806,7 +806,6 @@ class KiKlimaProCard extends HTMLElement {
       .filter((l) => l.handling === "senket");
 
     return `
-      ${this._overtakelse(true)}
       ${this._leggetidBlokk()}
       ${this._budsjettBlokk(a)}
       <div class="blokk">
@@ -2020,14 +2019,17 @@ class KiKlimaProCard extends HTMLElement {
     const maler = TIMESMALER_KANDIDATER.filter((id) => this._st(id));
     const brukt = this._a("sensor.ki_energi_status", "malekilde", "");
 
+    /* «Hvem styrer ovnene» sto både øverst i Oversikt og øverst her — samme blokk to
+       steder. Den hører hjemme i Oppsett, og der nederst: den forteller hvem som eier
+       bryterne, ikke noe man endrer ofte. */
     return `
-      ${this._overtakelse(false)}
       ${grupper.map(([tittel, liste]) => `
       <div class="blokk">
         <div class="hode"><span>${tittel}</span></div>
         ${liste.map(bryterRad).join("")}
       </div>`).join("")}
       ${this._lysBlokk()}
+      ${this._overtakelse(false)}
       <div class="blokk">
         <div class="hode"><span>Varslinger</span>
           <span class="sub"><div class="bryter ${varslerPa ? "on" : ""}" data-handling="veksle" data-entity="input_boolean.ki_energi_varsler"><span></span></div></span></div>
@@ -2302,7 +2304,7 @@ class KiKlimaProCard extends HTMLElement {
 
   async _hentHistorikk() {
     const naa = Date.now();
-    if (this._hist && naa - this._histTid < 120000) { this._tegnGrafer(); return; }
+
     // Timesmåleren kan hete flere ting, og sensor.ki_forbruk_time finnes ikke
     // hos alle. Finn den som er der, ellers står grafen tom uten forklaring.
     this._malerId = null;
@@ -2317,6 +2319,19 @@ class KiKlimaProCard extends HTMLElement {
       if (g.temp && !ider.includes(g.temp)) ider.push(g.temp);
     });
     const nokkel = ider.join(",");
+
+    /* Nøkkelen MÅ regnes før vi ser på cachen.
+     *
+     * Før sto cachesjekken først: åpnet du en sone, ble dens entiteter lagt til i
+     * `ider`, men vi returnerte på den to minutter gamle cachen og hentet dem aldri.
+     * Sonegrafene sto derfor tomme med «Ingen temperaturhistorikk ennå» — også når
+     * historikken fantes.
+     *
+     * Nå gjelder cachen bare når den dekker nøyaktig de samme entitetene. */
+    if (this._hist && this._histNokkel === nokkel && naa - this._histTid < 120000) {
+      this._tegnGrafer();
+      return;
+    }
     if (this._hist && this._histNokkel !== nokkel) this._hist = null;
     try {
       const start = new Date(naa - 12 * 3600 * 1000).toISOString();
@@ -2490,7 +2505,16 @@ class KiKlimaProCard extends HTMLElement {
     } else if (h === "sonegraf") {
       this._soneGrafValg = this._soneGrafValg || {};
       this._soneGrafValg[el.dataset.key] = el.dataset.hva;
-      this._tegn();
+      /* Bare fanene og grafen skal oppdateres. `_tegn()` bygde hele panelet på nytt,
+         og da ble den ferdige grafen byttet ut med plassholderen igjen — bytte mellom
+         Temperatur og Effekt så derfor ut som om grafen ikke virket. */
+      const rad = el.parentElement;
+      if (rad) {
+        for (const f of rad.querySelectorAll(".underfane")) {
+          f.classList.toggle("aktiv", f.dataset.hva === el.dataset.hva);
+        }
+      }
+      this._tegnGrafer();
     } else if (h === "subkollaps") {
       const sek = el.closest(".sub-seksjon");
       const lukket = sek && sek.classList.toggle("lukket");
@@ -2968,15 +2992,26 @@ class KiKlimaProCard extends HTMLElement {
       @keyframes kiHusPust { 0%,100% { opacity:.3 } 50% { opacity:.8 } }
 
       .husscene .varme path { fill:none; stroke:var(--orange,#f0a952); stroke-width:2.4;
-        stroke-linecap:round; opacity:0; }
+        stroke-linecap:round; opacity:0;
+        /* Forsinkelsen spres over HELE syklusen, ikke over det første sekundet.
+           Før kom de tre bølgene på 0, 0,5 og 1,0 s mot en syklus på 3,4 s — og da sto
+           det tomt i 2,4 sekunder før neste runde. Det var hakket.
+           Negativ forsinkelse gjør at de er i gang med en gang, i stedet for at
+           animasjonen starter med en tom pause. */
+        animation-name:kiHusVarme; animation-iteration-count:infinite;
+        animation-timing-function:linear;
+        animation-delay:calc(var(--i, 0) * var(--dur, 3.4s) / -3); }
       /* Hjemme stiger varmen tydelig og raskt; borte er den svak og langsom. */
-      .husscene.hjemme .varme path { animation:kiHusVarme 3.4s ease-in-out infinite; }
-      .husscene.borte .varme path { animation:kiHusVarme 9s ease-in-out infinite;
+      .husscene.hjemme .varme path { --dur:3.4s; animation-duration:3.4s; }
+      .husscene.borte .varme path { --dur:9s; animation-duration:9s;
         stroke:var(--blue,#8cbef5); }
+      /* Jevn inn og ut, så skjøten mellom to runder ikke synes: null dekning i begge
+         ender og lineær gange. */
       @keyframes kiHusVarme {
-        0% { opacity:0; transform:translateY(8px) }
-        35% { opacity:.55 }
-        100% { opacity:0; transform:translateY(-10px) }
+        0% { opacity:0; transform:translateY(9px) }
+        25% { opacity:.5 }
+        70% { opacity:.5 }
+        100% { opacity:0; transform:translateY(-11px) }
       }
       /* På smal skjerm krymper huset i stedet for å forsvinne: det er det som viser
          tilstanden. Under 400 px er det ingen plass igjen, og da går det ut. */

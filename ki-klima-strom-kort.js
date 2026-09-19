@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.20.0";
+const KI_PRO_VERSJON = "1.21.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -1153,7 +1153,7 @@ class KiKlimaProCard extends HTMLElement {
 
   _varmtvann() {
     const faner = [["bereder", "Bereder", "mdi:water-boiler"]];
-    if (this._har("hanklevarmer")) faner.push(["handkle", "Håndklevarmer", "mdi:radiator"]);
+    if (this._har("hanklevarmer")) faner.push(["handkle", "Bad", "mdi:shower"]);
     else if (this._underfane === "handkle") this._underfane = "bereder";
 
     /* `u` MÅ leses etter tilbakefallet over. Ble den lest først, sto den på «handkle»
@@ -1285,39 +1285,40 @@ class KiKlimaProCard extends HTMLElement {
           <i style="width:${andel.toFixed(0)}%" class="${fukt >= grense ? "over" : ""}"></i>
         </div>` : ""}` : ""}
 
-        <div class="rad">
-          <div class="radtekst"><div class="radnavn">Slå på etter dusj</div>
-            <div class="radsub">Krever at fukten holder seg over grensen</div></div>
-          <div class="bryter ${pa ? "on" : ""} ${this._st("input_boolean.ki_hanklevarmer_fukt") ? "" : "mangler"}"
-               data-handling="veksle" data-entity="input_boolean.ki_hanklevarmer_fukt"><span></span></div>
-        </div>
-        <div class="rad">
-          <div class="radtekst"><div class="radnavn">Fuktgrense</div>
-            <div class="radsub">Hvor fuktig det må bli</div></div>
-          <input class="tallfelt" type="number" min="40" max="95" step="1"
-                 data-entity="input_number.ki_hanklevarmer_fukt_grense"
-                 value="${esc(this._n("input_number.ki_hanklevarmer_fukt_grense", 70))}" />
-        </div>
-        <div class="rad">
-          <div class="radtekst"><div class="radnavn">Varighet over grensen</div>
-            <div class="radsub">Minutter sammenhengende før den slår på</div></div>
-          <input class="tallfelt" type="number" min="1" max="30" step="1"
-                 data-entity="input_number.ki_hanklevarmer_fukt_minutter"
-                 value="${esc(this._n("input_number.ki_hanklevarmer_fukt_minutter", 3))}" />
-        </div>
-        <div class="rad">
-          <div class="radtekst"><div class="radnavn">Står på i</div>
-            <div class="radsub">Timer etter at vinduet åpnet</div></div>
-          <input class="tallfelt" type="number" min="0.5" max="8" step="0.5"
-                 data-entity="input_number.ki_hanklevarmer_fukt_timer"
-                 value="${esc(this._n("input_number.ki_hanklevarmer_fukt_timer", 2))}" />
-        </div>
-        <div class="notat">Fukten må ligge over grensen sammenhengende. Et øyeblikksmål
-          ville slått på varmeren hver gang noen vasker hendene — det som skiller en dusj
-          er at fukten blir stående. Faller den under før tiden er ute, teller den fra
-          null igjen.</div>
-        ${this._vifteRader(a)}
-      </div>`;
+        ${this._sub("fukt-innst", "Innstillinger", `
+          <div class="rad">
+            <div class="radtekst"><div class="radnavn">Slå på etter dusj</div>
+              <div class="radsub">Krever at fukten holder seg over grensen</div></div>
+            <div class="bryter ${pa ? "on" : ""} ${this._st("input_boolean.ki_hanklevarmer_fukt") ? "" : "mangler"}"
+                 data-handling="veksle" data-entity="input_boolean.ki_hanklevarmer_fukt"><span></span></div>
+          </div>
+          <div class="rad">
+            <div class="radtekst"><div class="radnavn">Fuktgrense</div>
+              <div class="radsub">Hvor fuktig det må bli</div></div>
+            <input class="tallfelt" type="number" min="40" max="95" step="1"
+                   data-entity="input_number.ki_hanklevarmer_fukt_grense"
+                   value="${esc(this._n("input_number.ki_hanklevarmer_fukt_grense", 70))}" />
+          </div>
+          <div class="rad">
+            <div class="radtekst"><div class="radnavn">Varighet over grensen</div>
+              <div class="radsub">Minutter sammenhengende før den slår på</div></div>
+            <input class="tallfelt" type="number" min="1" max="30" step="1"
+                   data-entity="input_number.ki_hanklevarmer_fukt_minutter"
+                   value="${esc(this._n("input_number.ki_hanklevarmer_fukt_minutter", 3))}" />
+          </div>
+          <div class="rad">
+            <div class="radtekst"><div class="radnavn">Står på i</div>
+              <div class="radsub">Timer etter at vinduet åpnet</div></div>
+            <input class="tallfelt" type="number" min="0.5" max="8" step="0.5"
+                   data-entity="input_number.ki_hanklevarmer_fukt_timer"
+                   value="${esc(this._n("input_number.ki_hanklevarmer_fukt_timer", 2))}" />
+          </div>
+          <div class="notat">Fukten må ligge over grensen sammenhengende. Et øyeblikksmål
+            ville slått på varmeren hver gang noen vasker hendene — det som skiller en dusj
+            er at fukten blir stående. Faller den under før tiden er ute, teller den fra
+            null igjen.</div>`)}
+      </div>
+      ${this._vifteBlokk(a)}`;
   }
 
   /* Baderomsvifta, i samme blokk som håndklevarmeren.
@@ -1327,7 +1328,7 @@ class KiKlimaProCard extends HTMLElement {
    * et spørsmål om tid før de to kommer ut av takt i hodet på den som leser.
    *
    * Det eneste vifta har for seg selv er hvor lenge den går — minutter mot timer. */
-  _vifteRader(a) {
+  _vifteBlokk(a) {
     const har = a("har_badvifte", null);
     if (!har) return "";
 
@@ -1339,8 +1340,13 @@ class KiKlimaProCard extends HTMLElement {
       if (!isNaN(d)) igjen = Math.max(0, Math.round((d - Date.now()) / 60000));
     }
 
+    /* Egen blokk, ikke en underoverskrift i «Etter dusj». Vifta og håndklevarmeren
+       deler utløsning, men er to ulike ting man slår av og på hver for seg — og i en
+       liste leses en underoverskrift som «hører til det over», ikke som «eget valg». */
     return `
-      <div class="undertittel" style="padding-top:10px">Baderomsvifte</div>
+      <div class="blokk">
+        <div class="hode"><span>Baderomsvifte</span><span class="sub">${
+          igjen ? `lufter, ${igjen} min igjen` : pa ? "klar" : "av"}</span></div>
       ${igjen ? `
       <div class="rad rad-les">
         <div class="prikk p-ok"></div>
@@ -1348,22 +1354,25 @@ class KiKlimaProCard extends HTMLElement {
           <div class="radsub">Startet av fukten etter dusj</div></div>
         <div class="radverdi">${igjen} min</div>
       </div>` : ""}
-      <div class="rad">
-        <div class="radtekst"><div class="radnavn">Slå på vifta etter dusj</div>
-          <div class="radsub">Samme fuktgrense som over</div></div>
-        <div class="bryter ${pa ? "on" : ""}
-             ${this._st("input_boolean.ki_bad_vifte_fukt") ? "" : "mangler"}"
-             data-handling="veksle" data-entity="input_boolean.ki_bad_vifte_fukt"><span></span></div>
-      </div>
-      <div class="rad">
-        <div class="radtekst"><div class="radnavn">Lufter i</div>
-          <div class="radsub">Minutter etter at fukten utløste</div></div>
-        <input class="tallfelt" type="number" min="5" max="120" step="5"
-               data-entity="input_number.ki_bad_vifte_minutter"
-               value="${esc(this._n("input_number.ki_bad_vifte_minutter", 20))}" />
-      </div>
-      <div class="notat">Vifta lufter ut, håndklevarmeren tørker håndklær — derfor
-        minutter og ikke timer. Har du startet vifta selv, slår ikke motoren den av.</div>`;
+      ${this._sub("vifte-innst", "Innstillinger", `
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Slå på vifta etter dusj</div>
+            <div class="radsub">Samme fuktgrense som over</div></div>
+          <div class="bryter ${pa ? "on" : ""}
+               ${this._st("input_boolean.ki_bad_vifte_fukt") ? "" : "mangler"}"
+               data-handling="veksle" data-entity="input_boolean.ki_bad_vifte_fukt"><span></span></div>
+        </div>
+        <div class="rad">
+          <div class="radtekst"><div class="radnavn">Lufter i</div>
+            <div class="radsub">Minutter etter at fukten utløste</div></div>
+          <input class="tallfelt" type="number" min="5" max="120" step="5"
+                 data-entity="input_number.ki_bad_vifte_minutter"
+                 value="${esc(this._n("input_number.ki_bad_vifte_minutter", 20))}" />
+        </div>
+        <div class="notat">Vifta lufter ut, håndklevarmeren tørker håndklær — derfor
+          minutter og ikke timer. Fuktgrensen er den samme som under «Etter dusj».
+          Har du startet vifta selv, slår ikke motoren den av.</div>`)}
+      </div>`;
   }
 
   _handkleKort() {

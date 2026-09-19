@@ -1,36 +1,40 @@
-# KI Klima/Strøm-kort 1.20.0
+# KI Klima/Strøm-kort 1.21.0
 
-## Baderomsvifta i samme blokk som håndklevarmeren
+## Fanen heter Bad
 
-«Etter dusj» under Vann og bad → Håndklevarmer styrer nå begge.
+«Håndklevarmer» dekket ikke lenger innholdet: der ligger nå håndklevarmeren,
+fuktstyringen, baderomsvifta og dusjvinduene. Ikonet er byttet til dusjen.
 
-Vifta fikk **ikke** egen blokk, og det var et bevisst valg: de utløses av den samme
-fuktmålingen, og grensen og varigheten over gjelder begge. Sto grensen to steder, ville
-det bare være et spørsmål om tid før de kom ut av takt i hodet på den som leser.
+## Baderomsvifta har egen blokk
 
-Det eneste vifta har for seg selv er hvor lenge den går — **minutter, ikke timer**. Den
-skal lufte ut, ikke tørke håndklær.
+Den lå som en underoverskrift inne i «Etter dusj». En underoverskrift leses som «hører
+til det over», og vifta er et eget valg man slår av og på for seg.
 
-### Nye rader under «Baderomsvifte»
+Fuktgrensen står fortsatt bare ett sted — under «Etter dusj» — og notatet i vifteblokka
+sier hvor den er.
 
-* **Slå på vifta etter dusj**, med «samme fuktgrense som over» som forklaring
-* **Lufter i** — minutter etter at fukten utløste, standard 20
-* **Lufter nå · 13 min**, men bare når vifta faktisk går
+## Lukket viser sammendraget, åpent viser alt
 
-Notatet sier også at motoren ikke slår av en vifte du har startet selv.
+Tre blokker har nå samme form: det man sjekker står framme, det man stiller på ligger i
+nedtrekket.
 
-Radene vises bare når en vifte er valgt i integrasjonen (`har_badvifte`, KI Energi
-2.28.0). Hele blokka krever fortsatt en fuktsensor — uten den er verken varmer eller
-vifte styrt av fukt.
+| Blokk | Lukket | Åpent |
+| --- | --- | --- |
+| Etter dusj | Fuktprosent nå og den blå stripa mot grensen | Bryter, grense, varighet, timer |
+| Baderomsvifte | «lufter, 13 min igjen» eller «klar» | Bryter og minutter |
+| Dusjvinduer | Tidene i overskriften og tidslinja | Morgen, kveld, sikkerhet |
+
+Stripa og tidslinja er nettopp det man åpner kortet for å se; klokkeslettene og
+grensene setter man én gang.
 
 ### Kontrollert
 
-Fire tilfeller: uten vifte (fem rader, ingen underoverskrift), med vifte som står stille
-(sju rader), med vifte som lufter (åtte rader og «13 min»), og uten fuktsensor der hele
-blokka er borte.
+Fanen heter Bad. Fem blokker i riktig rekkefølge. «Etter dusj» viser 52 % og stripa når
+den er lukket, med null brytere utenfor nedtrekket. Dusjvinduer viser tidslinja med null
+tidsfelt utenfor.
 
 ---
 
-# KI Klima/Strøm-kort 1.19.0
+# KI Klima/Strøm-kort 1.20.0
 
-Trinnlista følger bilens egne knapper via `trinn_tilgjengelig`.
+Baderomsvifta lagt inn, den gang som underoverskrift i «Etter dusj».

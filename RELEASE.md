@@ -1,32 +1,36 @@
-# KI Klima/Strøm-kort 1.18.0
+# KI Klima/Strøm-kort 1.20.0
 
-## Innstillingene er lagt i nedtrekk
+## Baderomsvifta i samme blokk som håndklevarmeren
 
-To steder hadde lange lister med felt man sjelden rører, rett under det man faktisk ser
-etter.
+«Etter dusj» under Vann og bad → Håndklevarmer styrer nå begge.
 
-**Håndklevarmer → Dusjvinduer.** Tidslinja står framme; morgen- og kveldstidene, maks
-på-tid og effekt ligger under «Endre tider». Tidslinja er det man sjekker — de fire
-klokkeslettene er noe man setter én gang.
+Vifta fikk **ikke** egen blokk, og det var et bevisst valg: de utløses av den samme
+fuktmålingen, og grensen og varigheten over gjelder begge. Sto grensen to steder, ville
+det bare være et spørsmål om tid før de kom ut av takt i hodet på den som leser.
 
-**Bereder → Prisstyring.** Prisstripa står framme; antall billige timer,
-legionellaintervall, frister, vindustider og de tre bryterne ligger under
-«Innstillinger».
+Det eneste vifta har for seg selv er hvor lenge den går — **minutter, ikke timer**. Den
+skal lufte ut, ikke tørke håndklær.
 
-Begge er lukket som standard og husker stillingen, som de andre sammenleggbare
-seksjonene i kortet.
+### Nye rader under «Baderomsvifte»
 
-Blokkene over og under er urørt: status, legionella og Handling står som før.
+* **Slå på vifta etter dusj**, med «samme fuktgrense som over» som forklaring
+* **Lufter i** — minutter etter at fukten utløste, standard 20
+* **Lufter nå · 13 min**, men bare når vifta faktisk går
+
+Notatet sier også at motoren ikke slår av en vifte du har startet selv.
+
+Radene vises bare når en vifte er valgt i integrasjonen (`har_badvifte`, KI Energi
+2.28.0). Hele blokka krever fortsatt en fuktsensor — uten den er verken varmer eller
+vifte styrt av fukt.
 
 ### Kontrollert
 
-Håndklevarmeren: ett nedtrekk, lukket, med fire tidsfelt inni og null utenfor — og
-døgnplanen fortsatt synlig. Berederen: prisstripa utenfor nedtrekket, tre brytere inni og
-null utenfor, og Handling-blokka står igjen.
+Fire tilfeller: uten vifte (fem rader, ingen underoverskrift), med vifte som står stille
+(sju rader), med vifte som lufter (åtte rader og «13 min»), og uten fuktsensor der hele
+blokka er borte.
 
 ---
 
-# KI Klima/Strøm-kort 1.17.0
+# KI Klima/Strøm-kort 1.19.0
 
-Sonegrafene virker: cachen hindret hentingen av nyåpnede soner, og fanebyttet mellom
-Temperatur og Effekt bygde hele panelet på nytt.
+Trinnlista følger bilens egne knapper via `trinn_tilgjengelig`.

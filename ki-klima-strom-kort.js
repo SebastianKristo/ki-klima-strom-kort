@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.18.0";
+const KI_PRO_VERSJON = "1.20.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -1316,7 +1316,54 @@ class KiKlimaProCard extends HTMLElement {
           ville slått på varmeren hver gang noen vasker hendene — det som skiller en dusj
           er at fukten blir stående. Faller den under før tiden er ute, teller den fra
           null igjen.</div>
+        ${this._vifteRader(a)}
       </div>`;
+  }
+
+  /* Baderomsvifta, i samme blokk som håndklevarmeren.
+   *
+   * De utløses av den samme fuktmålingen, og grensen og varigheten over gjelder begge.
+   * Å gi vifta en egen blokk ville betydd at grensen sto to steder, og da er det bare
+   * et spørsmål om tid før de to kommer ut av takt i hodet på den som leser.
+   *
+   * Det eneste vifta har for seg selv er hvor lenge den går — minutter mot timer. */
+  _vifteRader(a) {
+    const har = a("har_badvifte", null);
+    if (!har) return "";
+
+    const pa = this._pa("input_boolean.ki_bad_vifte_fukt");
+    const til = a("vifte_til", null);
+    let igjen = null;
+    if (til) {
+      const d = new Date(til);
+      if (!isNaN(d)) igjen = Math.max(0, Math.round((d - Date.now()) / 60000));
+    }
+
+    return `
+      <div class="undertittel" style="padding-top:10px">Baderomsvifte</div>
+      ${igjen ? `
+      <div class="rad rad-les">
+        <div class="prikk p-ok"></div>
+        <div class="radtekst"><div class="radnavn">Lufter nå</div>
+          <div class="radsub">Startet av fukten etter dusj</div></div>
+        <div class="radverdi">${igjen} min</div>
+      </div>` : ""}
+      <div class="rad">
+        <div class="radtekst"><div class="radnavn">Slå på vifta etter dusj</div>
+          <div class="radsub">Samme fuktgrense som over</div></div>
+        <div class="bryter ${pa ? "on" : ""}
+             ${this._st("input_boolean.ki_bad_vifte_fukt") ? "" : "mangler"}"
+             data-handling="veksle" data-entity="input_boolean.ki_bad_vifte_fukt"><span></span></div>
+      </div>
+      <div class="rad">
+        <div class="radtekst"><div class="radnavn">Lufter i</div>
+          <div class="radsub">Minutter etter at fukten utløste</div></div>
+        <input class="tallfelt" type="number" min="5" max="120" step="5"
+               data-entity="input_number.ki_bad_vifte_minutter"
+               value="${esc(this._n("input_number.ki_bad_vifte_minutter", 20))}" />
+      </div>
+      <div class="notat">Vifta lufter ut, håndklevarmeren tørker håndklær — derfor
+        minutter og ikke timer. Har du startet vifta selv, slår ikke motoren den av.</div>`;
   }
 
   _handkleKort() {
@@ -1802,9 +1849,12 @@ class KiKlimaProCard extends HTMLElement {
 
       <div class="blokk">
         <div class="hode"><span>Trinnene</span><span class="sub">230 V enfase</span></div>
-        ${[5, 10, 16].map((amp) => {
+        ${(tilgjengelig.length ? tilgjengelig : [5, 10, 16]).map((amp) => {
           const kw = Math.round(amp * 230) / 1000;
-          const har = tilgjengelig.includes(amp);
+          /* Alt som står i lista ER tilgjengelig — den kommer fra knappene du har
+             satt opp. Tidligere sto en fast liste her, og da fikk du «mangler knapp»
+             på 18 A som ikke finnes, mens 8 A ikke ble vist i det hele tatt. */
+          const har = true;
           const aktiv = satt === amp;
           const passer = isFinite(ledig) && kw <= ledig;
           return `<div class="rad rad-les ${har ? "" : "mangler"}">

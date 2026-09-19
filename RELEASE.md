@@ -1,50 +1,42 @@
-# KI Klima/Strøm-kort 1.12.0
+# KI Klima/Strøm-kort 1.13.0
 
-## Borte-kortet ble for høyt på mobil
+## Modusene sto to steder
 
-Hjemkomsten tok tre linjer. Nå står tid og resttid på samme rad med stripa under — to
-linjer i stedet for tre.
+«Bortemodus» og «Hjemkomst» lå både i Bortemodus-blokka og i Modus-blokka rett under —
+samme bryter, to steder å trykke.
 
-Huset **krymper** under 620 px i stedet for å forsvinne, til 92 px uten undertekst. Det
-er huset som viser tilstanden, så det skal være det siste som ryker. Under 400 px er det
-ingen plass igjen, og da går det ut.
+Modus-blokka eier dem nå. Igjen i Bortemodus står «Slå på automatisk», som hører til
+bortestyringen og ikke er en modus man slår på selv, pluss de fire bortetemperaturene.
 
-## «Hjemkomst 13:00» på en lørdag
+## Fanene har fått søvnpopupens form
 
-Det var en feil i integrasjonen, ikke i kortet: `hjemkomst_tid` ble publisert **alltid**,
-også når ingen hjemkomst var planlagt. Tallet var bare standardverdien i innstillingen, og
-kortet leste det som en plan.
+Bereder/Håndklevarmer under Vann og bad, og Temperatur/Effekt inne i sonene, hadde løse
+piller uten ramme — de så ut som knapper, ikke faner.
 
-Kortet krever nå `hjemkomst_aktiv` i tillegg. Retter du bare kortet, forsvinner linja
-uansett — men **KI Energi 2.26.0 fikser kilden**, og publiserer `hjemkomst_tid` bare når
-en hjemkomst faktisk er satt i gang. Innstillingen ligger nå i
-`hjemkomst_tid_innstilling` for den som vil vise den.
+Nå: én rund ramme rundt gruppa, aktiv fane fylt med `--active-big` og mørk tekst, samme
+som fanerada i søvnpopupen. De små beholder tettere padding, siden de står inne i en
+sammenleggbar blokk og ikke skal konkurrere med overskriften over.
 
-## Fanene kan ordnes i UI
+## «Glemt lys» brøt til to linjer
 
-Editoren har fått en faneliste: piler for rekkefølge, øye for å skjule.
+Raden fikk flyte fritt, så merket havnet på linje to selv når det var plass.
 
-* **Rekkefølge** lagres som `faner: [energi, oversikt, ...]`
-* **Skjul** tar fanen ut av lista, og den er fortsatt synlig i editoren så du kan
-  hente den tilbake
-* **Vis navn på fanene** av gir rene ikonfaner
+Navnet ligger nå i sin egen `.navntekst` som krymper med ellipse, og merkene har
+`flex:none`. Lange navn som «Sebastians soverom takbelysning» kortes ned i stedet for å
+dytte merket ned.
 
-Rekkefølgen i editoren viser alltid alle åtte, også de du ikke har rørt — ellers ville en
-fane du aldri har flyttet forsvunnet fra lista.
-
-Ukjente navn i `faner:` hoppes over, og er ingen gyldige igjen, vises alle. En skrivefeil
-skal ikke gi et tomt kort.
-
-### Om kortene inne i fanene
-
-De kan ikke flyttes herfra. Innholdet i hver fane er bygget av kortet — det er ikke en
-liste med Lovelace-kort, men blokker koden setter sammen ut fra hva som finnes.
-
-Skal de kunne ordnes, må hver blokk få et navn og en rekkefølge i konfigurasjonen. Det er
-en større endring, og jeg vil heller gjøre den bevisst enn å halvveis stikke den inn her.
-Si fra hvis det er verdt det.
+Navnet måtte i en egen span: det var en naken tekstnode, og en tekstnode kan verken
+krympe eller få `text-overflow`.
 
 ### Kontrollert
 
-Fanerekkefølge opp og ned, skjul og vis igjen, `faner:` skrevet riktig ut, og kortet som
-følger rekkefølgen. Ukjente navn og tom liste faller tilbake til alle fanene.
+Underfanene tegnes med ramme og riktig aktiv fane. Lysraden med et langt navn gir navn i
+egen span og to merker på samme linje. Bortemodus-blokka inneholder ikke lenger
+`ki_helgemodus` eller `ki_hjemkomst_aktiv`, men fortsatt `ki_helg_auto`.
+
+---
+
+# KI Klima/Strøm-kort 1.12.0
+
+Borte-kortet er lavere på mobil, «Hjemkomst 13:00» vises bare når en hjemkomst faktisk er
+planlagt, og fanene kan ordnes i editoren.

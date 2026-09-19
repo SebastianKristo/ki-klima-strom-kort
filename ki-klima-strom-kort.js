@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.12.0";
+const KI_PRO_VERSJON = "1.13.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -738,10 +738,11 @@ class KiKlimaProCard extends HTMLElement {
       : min >= 60 ? `${Math.floor(min / 60)} t ${min % 60} min`
       : `${min} min`;
 
+    /* Bortemodus og Hjemkomst står alt i Modus-blokka rett under. Her blir bare
+       «Slå på automatisk» igjen, som hører til bortestyringen og ikke er en modus man
+       slår på selv. To steder å trykke på samme bryter er verre enn ett. */
     const brikker = [
-      ["input_boolean.ki_helgemodus", this._l("Bortemodus"), "mdi:bag-suitcase"],
       ["input_boolean.ki_helg_auto", this._l("Slå på automatisk"), "mdi:timer-sand"],
-      ["input_boolean.ki_hjemkomst_aktiv", this._l("Hjemkomst"), "mdi:home-import-outline"],
     ];
     const tall = [
       ["input_number.ki_helg_auto_timer", "Timer før auto", " t"],
@@ -1463,7 +1464,7 @@ class KiKlimaProCard extends HTMLElement {
         <div class="rad">
           <div class="prikk p-${k(r.status)}"></div>
           <div class="radtekst">
-            <div class="radnavn">${esc(r.navn)} <span class="badge b-${r.type === "demp" ? "noytral" : "ok"}">${r.type === "demp" ? "nattdemping" : "glemt lys"}</span>${r.pa ? ' <span class="badge b-advarsel">på' + (r.pa_min ? " " + r.pa_min + " min" : "") + "</span>" : ""}</div>
+            <div class="radnavn"><span class="navntekst">${esc(r.navn)}</span><span class="badge b-${r.type === "demp" ? "noytral" : "ok"}">${r.type === "demp" ? "nattdemping" : "glemt lys"}</span>${r.pa ? ' <span class="badge b-advarsel">på' + (r.pa_min ? " " + r.pa_min + " min" : "") + "</span>" : ""}</div>
             <div class="radsub" data-entity="${esc(r.light)}">${esc(r.tekst || "")}</div></div>
           <div class="bryter ${r.aktiv ? "on" : ""}" data-handling="veksle" data-entity="input_boolean.ki_lys_${esc(r.key)}"><span></span></div>
         </div>`).join("")}
@@ -2604,12 +2605,21 @@ class KiKlimaProCard extends HTMLElement {
         background: var(--gray200, var(--secondary-background-color)); scrollbar-width:none;
         max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
       .faner::-webkit-scrollbar { display:none; }
-      .underfaner { display:flex; gap:6px; margin:2px 0 10px; }
-      .underfane { flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
-        padding:9px 10px; border-radius:75px; font-size:13px; font-weight:600; cursor:pointer;
-        background: rgba(128,128,128,.14); opacity:.7; }
+      /* Samme form som fanerada i søvnpopupen: én rund ramme rundt gruppa, og den
+         aktive fylt med --active-big. Før var det løse piller uten ramme, og de så ut
+         som knapper i stedet for faner. */
+      .underfaner { display:flex; gap:4px; margin:2px auto 10px; padding:2px;
+        width:fit-content; max-width:100%; border-radius:999px;
+        border:1px solid rgba(255,255,255,.3); overflow:hidden; }
+      .underfane { display:flex; align-items:center; justify-content:center; gap:6px;
+        padding:9px 22px; border-radius:999px; font-size:14px; font-weight:500;
+        cursor:pointer; color:rgba(255,255,255,.72); white-space:nowrap;
+        transition:background .15s, color .15s; }
+      .underfane:hover { color:rgba(255,255,255,.95); }
       .underfane ha-icon { --mdc-icon-size:17px; }
-      .underfane.aktiv { opacity:1; background: rgba(128,128,128,.28); }
+      .underfane.aktiv { background:var(--active-big); color:rgba(70,58,64,.95);
+        box-shadow:0 1px 6px rgba(0,0,0,.35); }
+      @media (max-width:420px) { .underfane { padding:9px 14px; } }
       .bar { position:relative; height:8px; border-radius:75px; background: rgba(128,128,128,.18); margin:10px 0 6px; overflow:visible; }
       .bar-fyll { height:100%; border-radius:75px; background: var(--green, #4caf50); transition: width .4s; }
       .bar-fyll.f-advarsel { background: var(--orange, #fc6d09); }
@@ -2823,7 +2833,13 @@ class KiKlimaProCard extends HTMLElement {
       .rad + .rad { border-top:1px solid rgba(128,128,128,.14); }
       .rad-les { cursor:pointer; }
       .radtekst { flex:1 1 auto; min-width:0; }
-      .radnavn { font-size:14.5px; font-weight:500; overflow-wrap:anywhere; }
+      /* Navnet krymper, merkene brytes ikke. Før fløt hele raden fritt, og «glemt lys»
+         havnet på linje to selv når det var plass til det. */
+      .radnavn { font-size:14.5px; font-weight:500; display:flex; align-items:center;
+        gap:6px; min-width:0; }
+      .radnavn .navntekst { min-width:0; overflow:hidden; text-overflow:ellipsis;
+        white-space:nowrap; }
+      .radnavn .badge { flex:none; white-space:nowrap; }
       .radsub { font-size:12.5px; opacity:.6; line-height:1.35; overflow-wrap:anywhere; }
       /* Verdien krymper aldri under sitt eget innhold (ellers blir «2 058 W» til «2058 …»);
          teksten til venstre er den som må vike. Bare .brytbar får brekke. */
@@ -2987,8 +3003,10 @@ class KiKlimaProCard extends HTMLElement {
       .graf .ytekst.rod { fill: var(--red, #f44336); opacity:.9; }
       .graf svg { width:100%; display:block; }
       .graf.hoy { height:160px; }
+      /* De små arver rammen og aktivfargen, men er tettere: de står inne i en
+         sammenleggbar blokk og skal ikke konkurrere med overskriften over. */
       .underfaner.smaa { margin:0 0 6px; }
-      .underfaner.smaa .underfane { padding:5px 10px; font-size:12px; }
+      .underfaner.smaa .underfane { padding:6px 14px; font-size:12.5px; }
       .graf .l1 { stroke: var(--active-big, var(--primary-color)); }
       .graf .l2 { stroke: var(--orange, #fc6d09); }
       .graf .grense { stroke: var(--red, #f44336); stroke-width:1; stroke-dasharray:4 4;

@@ -1,42 +1,28 @@
-# KI Klima/Strøm-kort 1.13.0
+# KI Klima/Strøm-kort 1.15.0
 
-## Modusene sto to steder
+## «Etter dusj» vises bare når fuktsensoren er satt opp
 
-«Bortemodus» og «Hjemkomst» lå både i Bortemodus-blokka og i Modus-blokka rett under —
-samme bryter, to steder å trykke.
+Blokka sto der alltid, med tre innstillinger som ikke kunne virke.
 
-Modus-blokka eier dem nå. Igjen i Bortemodus står «Slå på automatisk», som hører til
-bortestyringen og ikke er en modus man slår på selv, pluss de fire bortetemperaturene.
+Sjekken min var sann uansett, på to måter samtidig: `fukt_styring` er `false` og ikke
+`null` når sensoren mangler, og bryteren `ki_hanklevarmer_fukt` lages alltid av
+integrasjonen — så begge leddene i `||` slo til.
 
-## Fanene har fått søvnpopupens form
+Nå brukes `har_fuktsensor` fra KI Energi 2.27.0, som sier om en sensor faktisk er valgt.
+Er du på en eldre versjon uten attributtet, faller kortet tilbake på om det finnes en
+fuktmåling — den finnes bare når en sensor er satt opp.
 
-Bereder/Håndklevarmer under Vann og bad, og Temperatur/Effekt inne i sonene, hadde løse
-piller uten ramme — de så ut som knapper, ikke faner.
-
-Nå: én rund ramme rundt gruppa, aktiv fane fylt med `--active-big` og mørk tekst, samme
-som fanerada i søvnpopupen. De små beholder tettere padding, siden de står inne i en
-sammenleggbar blokk og ikke skal konkurrere med overskriften over.
-
-## «Glemt lys» brøt til to linjer
-
-Raden fikk flyte fritt, så merket havnet på linje to selv når det var plass.
-
-Navnet ligger nå i sin egen `.navntekst` som krymper med ellipse, og merkene har
-`flex:none`. Lange navn som «Sebastians soverom takbelysning» kortes ned i stedet for å
-dytte merket ned.
-
-Navnet måtte i en egen span: det var en naken tekstnode, og en tekstnode kan verken
-krympe eller få `text-overflow`.
+Tre innstillinger som ikke kan virke er verre enn ingen, og verst når man ikke ser at de
+ikke virker.
 
 ### Kontrollert
 
-Underfanene tegnes med ramme og riktig aktiv fane. Lysraden med et langt navn gir navn i
-egen span og to merker på samme linje. Bortemodus-blokka inneholder ikke lenger
-`ki_helgemodus` eller `ki_hjemkomst_aktiv`, men fortsatt `ki_helg_auto`.
+Ny integrasjon: uten sensor skjult, med sensor vist både når styringen er av og på.
+Eldre integrasjon: skjult uten måling, vist med måling.
 
 ---
 
-# KI Klima/Strøm-kort 1.12.0
+# KI Klima/Strøm-kort 1.14.2
 
-Borte-kortet er lavere på mobil, «Hjemkomst 13:00» vises bare når en hjemkomst faktisk er
-planlagt, og fanene kan ordnes i editoren.
+Fanerada i Vann og bad har søvnpopupens fylte form, og en feil der håndklevarmeren ble
+vist uten at fanen fantes er rettet.

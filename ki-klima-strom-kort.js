@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.13.0";
+const KI_PRO_VERSJON = "1.15.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -613,9 +613,22 @@ class KiKlimaProCard extends HTMLElement {
         </div>`;
     }
 
+    /* Huset og ringen deler plass i stedet for å stables.
+     *
+     * Borte er huset det man vil se — ringen er nesten tom, og tallet sier lite når
+     * alt er senket. Trykk på huset bytter til ringen og tilbake.
+     * Hjemme er det motsatt: ringen er det viktige, og huset ville bare tatt høyde. */
+    const visHus = borte && this._heroPlass !== "ring";
+
     this._rot.getElementById("hero").innerHTML = `
       <div class="hero ${borte ? "kald" : ""}" data-sone="${esc(sone)}">
-        <div class="ring" data-handling="mer" data-entity="sensor.ki_energi_status">
+        ${visHus ? `
+        <div class="husplass" data-handling="heroplass" title="Vis marginen">
+          ${this._husScene(borte, tilst)}
+        </div>` : `
+        <div class="ring" data-handling="${borte ? "heroplass" : "mer"}"
+             data-entity="sensor.ki_energi_status"
+             title="${borte ? "Vis huset" : "Forventet mot tillatt effekt"}">
           <svg viewBox="0 0 100 100">
             <circle class="spor" cx="50" cy="50" r="43"></circle>
             <circle class="fyll" cx="50" cy="50" r="43"
@@ -624,7 +637,7 @@ class KiKlimaProCard extends HTMLElement {
           </svg>
           <div class="glod" style="animation-duration:${isFinite(bruk) && bruk > 0.1 ? Math.max(2.4, 7 - bruk).toFixed(1) : 8}s"></div>
           <div class="ringtall" title="Forventet ${nf(bruk, 2)} kW av ${nf(tillatt, 2)} kW tillatt">${Math.round(pct)}<span>%</span></div>
-        </div>
+        </div>`}
         <div class="herotekst">
           <div class="heronavn">${esc(SONE_TEKST[sone] || sone)}
             ${skygge ? '<span class="merke">skygge</span>' : ""}${this._hytte ? '<span class="merke">hytte</span>' : ""}</div>
@@ -640,7 +653,7 @@ class KiKlimaProCard extends HTMLElement {
             ${isFinite(ute) ? `<span><ha-icon icon="mdi:thermometer"></ha-icon>${nf(ute, 1)}°</span>` : ""}
           </div>
         </div>
-        ${tst ? this._husScene(borte, tilst) : ""}
+
         <div class="heroknapp" data-handling="hero" title="${this._heroApen ? "Skjul" : "Slik tenker motoren"}"><ha-icon icon="${this._heroApen ? "mdi:chevron-up" : "mdi:chevron-down"}"></ha-icon></div>
         ${this._heroApen ? this._heroDetaljer() : ""}
       </div>`;
@@ -1140,10 +1153,14 @@ class KiKlimaProCard extends HTMLElement {
   /* ---------------------------- Varmtvann --------------------- */
 
   _varmtvann() {
-    const u = this._underfane || "bereder";
     const faner = [["bereder", "Bereder", "mdi:water-boiler"]];
     if (this._har("hanklevarmer")) faner.push(["handkle", "Håndklevarmer", "mdi:radiator"]);
     else if (this._underfane === "handkle") this._underfane = "bereder";
+
+    /* `u` MÅ leses etter tilbakefallet over. Ble den lest først, sto den på «handkle»
+       selv når fanen ikke finnes — og da viste kortet håndklevarmeren uten at noen fane
+       var merket aktiv. */
+    const u = faner.some(([id]) => id === this._underfane) ? this._underfane : "bereder";
     return `<div class="underfaner">${faner.map(([id, navn, ikon]) => `
         <div class="underfane ${u === id ? "aktiv" : ""}" data-handling="underfane" data-id="${id}">
           <ha-icon icon="${ikon}"></ha-icon><span>${navn}</span></div>`).join("")}</div>`
@@ -1216,8 +1233,19 @@ class KiKlimaProCard extends HTMLElement {
    * og `fukt_til` fra KI Energi 2.23.0.
    */
   _fuktBlokk(a) {
-    const harSensor = a("fukt_styring", null) !== null
-      || this._st("input_boolean.ki_hanklevarmer_fukt");
+    /* Vises bare når en fuktsensor faktisk er valgt i integrasjonen.
+     *
+     * Den gamle sjekken var sann uansett: `fukt_styring` er `false` og ikke `null` når
+     * sensoren mangler, og bryteren `ki_hanklevarmer_fukt` lages alltid av
+     * integrasjonen. Blokka sto derfor der med tre innstillinger som ikke kunne virke.
+     *
+     * `har_fuktsensor` (KI Energi 2.27.0) sier om en sensor er valgt. Mangler
+     * attributtet — eldre integrasjon — faller vi tilbake på om det finnes en måling,
+     * som bare finnes når en sensor er satt opp. */
+    const harAttr = a("har_fuktsensor", null);
+    const harSensor = harAttr !== null && harAttr !== undefined
+      ? !!harAttr
+      : isFinite(Number(a("fukt_na", NaN)));
     if (!harSensor) return "";
 
     const pa = this._pa("input_boolean.ki_hanklevarmer_fukt");
@@ -2444,6 +2472,11 @@ class KiKlimaProCard extends HTMLElement {
     } else if (h === "hero") {
       this._heroApen = !this._heroApen;
       this._tegnHero();
+    } else if (h === "heroplass") {
+      /* Bytter mellom huset og marginringen. Valget nullstilles ikke: står man og ser
+         på ringen, skal den bli stående til man trykker tilbake. */
+      this._heroPlass = this._heroPlass === "ring" ? "hus" : "ring";
+      this._tegnHero();
     } else if (h === "mnd") {
       const m = Number(el.dataset.mnd);
       if (this._mndValg && this._mndValg.fraId === el.dataset.fra) {
@@ -2605,21 +2638,23 @@ class KiKlimaProCard extends HTMLElement {
         background: var(--gray200, var(--secondary-background-color)); scrollbar-width:none;
         max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
       .faner::-webkit-scrollbar { display:none; }
-      /* Samme form som fanerada i søvnpopupen: én rund ramme rundt gruppa, og den
-         aktive fylt med --active-big. Før var det løse piller uten ramme, og de så ut
-         som knapper i stedet for faner. */
-      .underfaner { display:flex; gap:4px; margin:2px auto 10px; padding:2px;
-        width:fit-content; max-width:100%; border-radius:999px;
-        border:1px solid rgba(255,255,255,.3); overflow:hidden; }
-      .underfane { display:flex; align-items:center; justify-content:center; gap:6px;
-        padding:9px 22px; border-radius:999px; font-size:14px; font-weight:500;
-        cursor:pointer; color:rgba(255,255,255,.72); white-space:nowrap;
-        transition:background .15s, color .15s; }
-      .underfane:hover { color:rgba(255,255,255,.95); }
-      .underfane ha-icon { --mdc-icon-size:17px; }
+      /* Søvnpopupens fanerad: FYLT beholder uten ramme, faner som deler bredden, og
+         den aktive i --active-big. Jeg lagde først en variant med ramme og
+         gjennomsiktig bakgrunn — den så ut som en knapperad, ikke som faner. */
+      .underfaner { display:flex; gap:0; margin:2px 0 10px; padding:4px;
+        border-radius:999px; background:var(--gray200); }
+      .underfane { flex:1; display:flex; align-items:center; justify-content:center;
+        gap:7px; padding:11px 16px; border-radius:999px; font-size:15px;
+        font-weight:500; cursor:pointer; color:var(--gray1000); opacity:.6;
+        white-space:nowrap; transition:background .18s, opacity .18s, color .18s; }
+      .underfane:hover { opacity:.85; }
+      .underfane ha-icon { --mdc-icon-size:18px; }
       .underfane.aktiv { background:var(--active-big); color:rgba(70,58,64,.95);
-        box-shadow:0 1px 6px rgba(0,0,0,.35); }
-      @media (max-width:420px) { .underfane { padding:9px 14px; } }
+        opacity:1; }
+      @media (max-width:420px) {
+        .underfane { padding:10px 10px; font-size:14px; }
+        .underfane ha-icon { display:none; }
+      }
       .bar { position:relative; height:8px; border-radius:75px; background: rgba(128,128,128,.18); margin:10px 0 6px; overflow:visible; }
       .bar-fyll { height:100%; border-radius:75px; background: var(--green, #4caf50); transition: width .4s; }
       .bar-fyll.f-advarsel { background: var(--orange, #fc6d09); }
@@ -2916,10 +2951,14 @@ class KiKlimaProCard extends HTMLElement {
         background:var(--blue,#4a9df8); transition:width .8s cubic-bezier(.2,.8,.2,1); }
 
       /* Huset. Samme tegning i begge tilstandene — bare farten og styrken skiller. */
-      .husscene { position:relative; flex:0 0 auto; width:150px; align-self:center;
-        display:grid; justify-items:center; }
-      .husscene svg { width:150px; height:140px; display:block; }
-      .husscene .husnote { font-size:11px; opacity:.45; margin-top:-6px; }
+      /* Huset står nå der ringen står, ikke under teksten. Samme mål som ringen, så
+         heroen har samme høyde uansett hvilken av dem som vises. */
+      .husplass { display:flex; align-items:center; justify-content:center;
+        cursor:pointer; transition:transform .12s cubic-bezier(.2,.8,.2,1); }
+      .husplass:active { transform:scale(.97); }
+      .husscene { position:relative; display:grid; justify-items:center; }
+      .husscene svg { width:100%; max-width:104px; height:auto; display:block; }
+      .husscene .husnote { display:none; }
       .husscene .tak { fill:currentColor; opacity:.28; }
       .husscene .vegg { fill:currentColor; opacity:.16; }
       .husscene .grunn { fill:currentColor; opacity:.12; }
@@ -2941,12 +2980,7 @@ class KiKlimaProCard extends HTMLElement {
       }
       /* På smal skjerm krymper huset i stedet for å forsvinne: det er det som viser
          tilstanden. Under 400 px er det ingen plass igjen, og da går det ut. */
-      @media (max-width:620px) {
-        .husscene { width:92px; }
-        .husscene svg { width:92px; height:86px; }
-        .husscene .husnote { display:none; }
-      }
-      @media (max-width:400px) { .husscene { display:none; } }
+      @media (max-width:400px) { .husscene svg { max-width:74px; } }
       @media (prefers-reduced-motion: reduce) {
         .husscene .varme path, .husscene .vindu.pa { animation:none; opacity:.5; }
       }
@@ -3003,10 +3037,12 @@ class KiKlimaProCard extends HTMLElement {
       .graf .ytekst.rod { fill: var(--red, #f44336); opacity:.9; }
       .graf svg { width:100%; display:block; }
       .graf.hoy { height:160px; }
-      /* De små arver rammen og aktivfargen, men er tettere: de står inne i en
-         sammenleggbar blokk og skal ikke konkurrere med overskriften over. */
-      .underfaner.smaa { margin:0 0 6px; }
-      .underfaner.smaa .underfane { padding:6px 14px; font-size:12.5px; }
+      /* De små arver formen, men er tettere: de står inne i en sammenleggbar blokk og
+         skal ikke konkurrere med overskriften over. */
+      .underfaner.smaa { margin:0 0 6px; padding:3px;
+        background:rgba(128,128,128,.14); }
+      .underfaner.smaa .underfane { padding:6px 12px; font-size:12.5px; }
+      .underfaner.smaa .underfane ha-icon { --mdc-icon-size:15px; display:flex; }
       .graf .l1 { stroke: var(--active-big, var(--primary-color)); }
       .graf .l2 { stroke: var(--orange, #fc6d09); }
       .graf .grense { stroke: var(--red, #f44336); stroke-width:1; stroke-dasharray:4 4;

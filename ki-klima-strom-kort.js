@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.10.0";
+const KI_PRO_VERSJON = "1.11.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -518,6 +518,35 @@ class KiKlimaProCard extends HTMLElement {
               "Helg senk gulvvarme": "Frost senk gulvvarme", "Alle borte": "Hytta tom" })[tekst] || tekst;
   }
 
+  /* Huset som scene i heroen.
+   *
+   * Samme tegning i begge tilstandene — forskjellen er farten og styrken, ikke to
+   * ulike bilder. Hjemme lyser alle vinduene og varmen stiger tydelig; borte pulserer
+   * ett vindu sakte og varmen er svak. Da leses tilstanden som en grad, og koden er én
+   * scene med parametere i stedet for to som må holdes i takt.
+   */
+  _husScene(borte, tilstand) {
+    const vinduer = borte ? [0, 1, 0] : [1, 1, 1];
+    return `
+      <div class="husscene ${borte ? "borte" : "hjemme"}">
+        <svg viewBox="0 0 160 150" aria-hidden="true">
+          <g class="varme">
+            ${[46, 80, 114].map((x) => [0, 1, 2].map((k) => `
+              <path class="b${k}" d="M${x - 13} ${46 - k * 20} q13 -12 26 0"
+                    style="animation-delay:${(k * 0.5 + x / 200).toFixed(2)}s"/>`).join("")).join("")}
+          </g>
+          <path class="tak" d="M14 70 L80 18 L146 70 z"/>
+          <rect class="vegg" x="28" y="70" width="104" height="58" rx="4"/>
+          ${vinduer.map((pa, i) => `
+            <rect class="vindu ${pa ? "pa" : ""}" x="${40 + i * 34}" y="84"
+                  width="26" height="26" rx="5"/>`).join("")}
+          <rect class="grunn" x="10" y="128" width="140" height="4" rx="2"/>
+        </svg>
+        <div class="husnote">${borte
+          ? "holdes frostfritt" : "lys på, varmen jobber"}</div>
+      </div>`;
+  }
+
   _tegnHero() {
     const sone = this._s("sensor.ki_energi_status", "ukjent");
     const forklaring = this._a("sensor.ki_energi_status", "forklaring", "Venter på motoren …");
@@ -531,8 +560,43 @@ class KiKlimaProCard extends HTMLElement {
     const o = 2 * Math.PI * 43;
     const ute = this._n(this._ent("ute_temp") || "sensor.outdoor_meter_temperature");
 
+    /* Tilstedeværelsen er flyttet hit fra en egen blokk under. To flater med samme
+       tema ble til én, og da trengs ingen margin mellom dem. */
+    const tst = this._st("sensor.ki_tilstedevaerelse");
+    const tat = (tst && tst.attributes) || {};
+    const tilst = tst ? tst.state : null;
+    const borte = tilst === "borte" || tilst === "borte_lenge";
+    const tKlasse = { hjemme: "pa", hjemkomst: "pa", kort_tur: "gul",
+      borte: "kald", borte_lenge: "kald", ukjent: "mangler" }[tilst] || "";
+    const tIkon = { hjemme: "mdi:home-account", hjemkomst: "mdi:home-import-outline",
+      kort_tur: "mdi:walk", borte: "mdi:home-export-outline",
+      borte_lenge: "mdi:bag-suitcase", ukjent: "mdi:help-circle-outline" }[tilst]
+      || "mdi:home-account";
+
+    /* Hjemkomst som stripe: «om 2 t 10 min» er det man lurer på, ikke klokkeslettet.
+       Stripa fylles fra da bortemodus startet til hjemkomsten. */
+    let hjemStripe = "";
+    if (borte && tat.hjemkomst_tid) {
+      const min = Number(tat.minutter_borte);
+      const [t, m] = String(tat.hjemkomst_tid).split(":").map(Number);
+      const naa = new Date();
+      const maal = new Date(naa); maal.setHours(t || 0, m || 0, 0, 0);
+      if (maal < naa) maal.setDate(maal.getDate() + 1);
+      const igjen = Math.max(0, Math.round((maal - naa) / 60000));
+      const totalt = isFinite(min) ? min + igjen : igjen;
+      const pct = totalt > 0 ? Math.max(0, Math.min(100, (min / totalt) * 100)) : 0;
+      const lesbar = igjen >= 60 ? `${Math.floor(igjen / 60)} t ${igjen % 60} min`
+        : `${igjen} min`;
+      hjemStripe = `
+        <div class="hjemkomst">
+          <div class="hktekst">Hjemkomst ${esc(tat.hjemkomst_tid)}</div>
+          <div class="hkspor"><i style="width:${pct.toFixed(0)}%"></i></div>
+          <div class="hkunder">Varmer opp om ${esc(lesbar)}</div>
+        </div>`;
+    }
+
     this._rot.getElementById("hero").innerHTML = `
-      <div class="hero" data-sone="${esc(sone)}">
+      <div class="hero ${borte ? "kald" : ""}" data-sone="${esc(sone)}">
         <div class="ring" data-handling="mer" data-entity="sensor.ki_energi_status">
           <svg viewBox="0 0 100 100">
             <circle class="spor" cx="50" cy="50" r="43"></circle>
@@ -547,11 +611,18 @@ class KiKlimaProCard extends HTMLElement {
           <div class="heronavn">${esc(SONE_TEKST[sone] || sone)}
             ${skygge ? '<span class="merke">skygge</span>' : ""}${this._hytte ? '<span class="merke">hytte</span>' : ""}</div>
           <div class="heroforklaring">${esc(forklaring)}</div>
+          ${tst ? `<div class="tstpille ${tKlasse}" data-handling="mer"
+            data-entity="sensor.ki_tilstedevaerelse">
+            <ha-icon icon="${tIkon}"></ha-icon>
+            <span>${esc(tat.tekst || tilst)}</span>
+          </div>` : ""}
+          ${hjemStripe}
           <div class="herolinje">
             <span>${esc(this._s("sensor.ki_klima_status", "Klima ukjent"))}</span>
             ${isFinite(ute) ? `<span><ha-icon icon="mdi:thermometer"></ha-icon>${nf(ute, 1)}°</span>` : ""}
           </div>
         </div>
+        ${tst ? this._husScene(borte, tilst) : ""}
         <div class="heroknapp" data-handling="hero" title="${this._heroApen ? "Skjul" : "Slik tenker motoren"}"><ha-icon icon="${this._heroApen ? "mdi:chevron-up" : "mdi:chevron-down"}"></ha-icon></div>
         ${this._heroApen ? this._heroDetaljer() : ""}
       </div>`;
@@ -615,7 +686,12 @@ class KiKlimaProCard extends HTMLElement {
 
   /* ---------------------------- Oversikt ---------------------- */
 
-  /* Tilstedeværelse: er noen hjemme, ute en tur, eller borte siden helgen?
+  /* Innstillingene for bortemodus.
+   *
+   * Statusen — hvem som er hjemme, hvor lenge, hjemkomst — er flyttet opp i heroen.
+   * Det som er igjen her er det man faktisk stiller på: bryterne og temperaturene.
+   * Opprinnelig kommentar under gjelder fortsatt for hvor tallene kommer fra.
+   *
    *
    * Integrasjonen skiller mellom de to siste — en tur på butikken skal ikke senke
    * huset, bortreist skal — men skillet sto ingen steder i kortet. Nå står det i
@@ -624,7 +700,7 @@ class KiKlimaProCard extends HTMLElement {
    * Krever `sensor.ki_tilstedevaerelse` fra KI Energi 2.20.0. Mangler den, faller
    * blokka bort og kortet er som før.
    */
-  _tilstedeBlokk() {
+  _borteInnstillinger() {
     const st = this._st("sensor.ki_tilstedevaerelse");
     if (!st) return "";
     const at = st.attributes || {};
@@ -658,18 +734,8 @@ class KiKlimaProCard extends HTMLElement {
 
     return `
       <div class="blokk">
-        <div class="hode"><span>Tilstedeværelse</span>${at.venter_svar
+        <div class="hode"><span>Bortemodus</span>${at.venter_svar
           ? `<span class="sub">Venter på svar om helgen</span>` : ""}</div>
-        <div class="tilstede ${klasse}" data-handling="mer"
-             data-entity="sensor.ki_tilstedevaerelse">
-          <div class="chipikon"><ha-icon icon="${ikon}"></ha-icon></div>
-          <div style="min-width:0">
-            <div class="tstor">${esc(tekst)}</div>
-            <div class="tsub">${varighet ? `Borte i ${esc(varighet)}` : ""}${
-              varighet && at.hjemkomst_tid ? " · " : ""}${
-              at.hjemkomst_tid ? `Hjemkomst kl. ${esc(at.hjemkomst_tid)}` : ""}</div>
-          </div>
-        </div>
         <div class="rutenett" style="margin-top:8px">
           ${brikker.map(([id, navn, ik]) => {
             const på = this._pa(id);
@@ -709,7 +775,7 @@ class KiKlimaProCard extends HTMLElement {
 
     return `
       ${this._overtakelse(true)}
-      ${this._tilstedeBlokk()}
+      ${this._borteInnstillinger()}
       ${this._leggetidBlokk()}
       ${this._budsjettBlokk(a)}
       <div class="blokk">
@@ -2791,6 +2857,55 @@ class KiKlimaProCard extends HTMLElement {
 
       .ovblokk { border-top:1px solid rgba(128,128,128,.16); margin-top:6px; padding-top:8px; }
       .undertittel { font-size:12.5px; font-weight:600; opacity:.55; padding-bottom:6px; }
+      /* --- tilstedeværelse i heroen, og huset --- */
+      .hero.kald { background: color-mix(in srgb, var(--blue, #4a9df8) 14%, var(--gray200)); }
+
+      .tstpille { display:inline-flex; align-items:center; gap:8px; margin-top:8px;
+        padding:7px 14px 7px 10px; border-radius:999px; font-size:13px;
+        background:rgba(128,128,128,.18); cursor:pointer; --mdc-icon-size:18px; }
+      .tstpille.pa { background: color-mix(in srgb, var(--green,#5ad18b) 28%, transparent); }
+      .tstpille.gul { background: color-mix(in srgb, var(--orange,#f0a952) 28%, transparent); }
+      .tstpille.kald { background: color-mix(in srgb, var(--blue,#4a9df8) 30%, transparent); }
+      .tstpille.mangler { opacity:.55; }
+
+      /* Hjemkomst som stripe: «om 2 t 10 min» er det man lurer på. */
+      .hjemkomst { margin-top:10px; max-width:420px; }
+      .hktekst { font-size:13px; opacity:.85; }
+      .hkspor { height:8px; border-radius:99px; background:rgba(255,255,255,.14);
+        overflow:hidden; margin:6px 0 4px; }
+      .hkspor i { display:block; height:100%; border-radius:99px;
+        background:var(--blue,#4a9df8); transition:width .8s cubic-bezier(.2,.8,.2,1); }
+      .hkunder { font-size:12px; opacity:.55; }
+
+      /* Huset. Samme tegning i begge tilstandene — bare farten og styrken skiller. */
+      .husscene { position:relative; flex:0 0 auto; width:150px; align-self:center;
+        display:grid; justify-items:center; }
+      .husscene svg { width:150px; height:140px; display:block; }
+      .husscene .husnote { font-size:11px; opacity:.45; margin-top:-6px; }
+      .husscene .tak { fill:currentColor; opacity:.28; }
+      .husscene .vegg { fill:currentColor; opacity:.16; }
+      .husscene .grunn { fill:currentColor; opacity:.12; }
+      .husscene .vindu { fill:currentColor; opacity:.10; }
+      .husscene .vindu.pa { fill:var(--orange,#f0d682); opacity:.85; }
+      .husscene.borte .vindu.pa { animation:kiHusPust 5.5s ease-in-out infinite; }
+      @keyframes kiHusPust { 0%,100% { opacity:.3 } 50% { opacity:.8 } }
+
+      .husscene .varme path { fill:none; stroke:var(--orange,#f0a952); stroke-width:2.4;
+        stroke-linecap:round; opacity:0; }
+      /* Hjemme stiger varmen tydelig og raskt; borte er den svak og langsom. */
+      .husscene.hjemme .varme path { animation:kiHusVarme 3.4s ease-in-out infinite; }
+      .husscene.borte .varme path { animation:kiHusVarme 9s ease-in-out infinite;
+        stroke:var(--blue,#8cbef5); }
+      @keyframes kiHusVarme {
+        0% { opacity:0; transform:translateY(8px) }
+        35% { opacity:.55 }
+        100% { opacity:0; transform:translateY(-10px) }
+      }
+      @media (max-width:560px) { .husscene { display:none; } }
+      @media (prefers-reduced-motion: reduce) {
+        .husscene .varme path, .husscene .vindu.pa { animation:none; opacity:.5; }
+      }
+
       .heronavn, .heroforklaring, .herolinje { min-width:0; overflow-wrap:anywhere; }
       .herotekst { min-width:0; }
       .tall b { overflow-wrap:anywhere; }

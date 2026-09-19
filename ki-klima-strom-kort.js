@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.11.0";
+const KI_PRO_VERSJON = "1.12.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -406,7 +406,7 @@ class KiKlimaProCard extends HTMLElement {
       <ha-card><div class="wrap">
         ${this._config.title ? `<div class="tittel">${esc(this._config.title)}</div>` : ""}
         <div id="hero"></div>
-        <div class="faner">${this._faner().map((f) => `
+        <div class="faner ${this._config.vis_fanenavn === false ? "baregikon" : ""}">${this._faner().map((f) => `
           <div class="fane" data-handling="fane" data-fane="${f.id}">
             <ha-icon icon="${f.icon}"></ha-icon><span>${f.navn}</span>
           </div>`).join("")}</div>
@@ -483,8 +483,19 @@ class KiKlimaProCard extends HTMLElement {
    * Standarden i `_har` er `true`, så en eldre integrasjon som ikke kjenner flagget
    * ville vist fanen. Derfor spør vi her om flagget FINNES, og faller tilbake på om
    * statussensoren for ladingen er der — begge må svare nei før fanen skjules. */
+  /* Fanene som vises, i den rekkefølgen konfigurasjonen sier.
+   *
+   * `faner: [energi, oversikt]` gir to faner i den rekkefølgen. Uten `faner:` vises
+   * alle i standardrekkefølgen. Ukjente navn hoppes over i stedet for å gi en tom
+   * fane — en skrivefeil skal ikke knekke kortet. */
   _faner() {
-    return FANER.filter((f) => f.id !== "lading" || this._harLading());
+    const valgt = this._config.faner;
+    let liste = FANER;
+    if (Array.isArray(valgt) && valgt.length) {
+      liste = valgt.map((id) => FANER.find((f) => f.id === id)).filter(Boolean);
+      if (!liste.length) liste = FANER;
+    }
+    return liste.filter((f) => f.id !== "lading" || this._harLading());
   }
 
   _harLading() {
@@ -576,7 +587,12 @@ class KiKlimaProCard extends HTMLElement {
     /* Hjemkomst som stripe: «om 2 t 10 min» er det man lurer på, ikke klokkeslettet.
        Stripa fylles fra da bortemodus startet til hjemkomsten. */
     let hjemStripe = "";
-    if (borte && tat.hjemkomst_tid) {
+    /* `hjemkomst_aktiv` er det som sier at en hjemkomst er planlagt. `hjemkomst_tid`
+       alene er bare innstillingen, og sto før der uansett — derfor viste kortet
+       «Hjemkomst 13:00» på en lørdag da ingen hadde bedt om oppvarming.
+       Krever KI Energi 2.26.0; på eldre er attributtet alltid satt, og da faller vi
+       tilbake til å stole på `hjemkomst_aktiv` som nå er det eneste kravet. */
+    if (borte && tat.hjemkomst_aktiv && tat.hjemkomst_tid) {
       const min = Number(tat.minutter_borte);
       const [t, m] = String(tat.hjemkomst_tid).split(":").map(Number);
       const naa = new Date();
@@ -589,9 +605,11 @@ class KiKlimaProCard extends HTMLElement {
         : `${igjen} min`;
       hjemStripe = `
         <div class="hjemkomst">
-          <div class="hktekst">Hjemkomst ${esc(tat.hjemkomst_tid)}</div>
+          <div class="hkrad">
+            <span>Hjemkomst ${esc(tat.hjemkomst_tid)}</span>
+            <span class="hkigjen">om ${esc(lesbar)}</span>
+          </div>
           <div class="hkspor"><i style="width:${pct.toFixed(0)}%"></i></div>
-          <div class="hkunder">Varmer opp om ${esc(lesbar)}</div>
         </div>`;
     }
 
@@ -2580,6 +2598,8 @@ class KiKlimaProCard extends HTMLElement {
       .merke { font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:75px;
         background: rgba(128,128,128,.3); vertical-align:middle; }
 
+      .faner.baregikon .fane span { display:none; }
+      .faner.baregikon .fane { padding:10px 14px; }
       .faner { display:flex; gap:4px; padding:4px; border-radius:20px; overflow-x:auto;
         background: var(--gray200, var(--secondary-background-color)); scrollbar-width:none;
         max-width:100%; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
@@ -2869,13 +2889,15 @@ class KiKlimaProCard extends HTMLElement {
       .tstpille.mangler { opacity:.55; }
 
       /* Hjemkomst som stripe: «om 2 t 10 min» er det man lurer på. */
-      .hjemkomst { margin-top:10px; max-width:420px; }
-      .hktekst { font-size:13px; opacity:.85; }
-      .hkspor { height:8px; border-radius:99px; background:rgba(255,255,255,.14);
-        overflow:hidden; margin:6px 0 4px; }
+      /* To linjer i stedet for tre: tid og resttid på samme rad, stripa under.
+         På mobil var tre linjer pluss huset nok til å doble høyden på kortet. */
+      .hjemkomst { margin-top:9px; max-width:420px; }
+      .hkrad { display:flex; justify-content:space-between; gap:12px; font-size:13px; }
+      .hkrad .hkigjen { opacity:.55; white-space:nowrap; }
+      .hkspor { height:6px; border-radius:99px; background:rgba(255,255,255,.14);
+        overflow:hidden; margin-top:5px; }
       .hkspor i { display:block; height:100%; border-radius:99px;
         background:var(--blue,#4a9df8); transition:width .8s cubic-bezier(.2,.8,.2,1); }
-      .hkunder { font-size:12px; opacity:.55; }
 
       /* Huset. Samme tegning i begge tilstandene — bare farten og styrken skiller. */
       .husscene { position:relative; flex:0 0 auto; width:150px; align-self:center;
@@ -2901,7 +2923,14 @@ class KiKlimaProCard extends HTMLElement {
         35% { opacity:.55 }
         100% { opacity:0; transform:translateY(-10px) }
       }
-      @media (max-width:560px) { .husscene { display:none; } }
+      /* På smal skjerm krymper huset i stedet for å forsvinne: det er det som viser
+         tilstanden. Under 400 px er det ingen plass igjen, og da går det ut. */
+      @media (max-width:620px) {
+        .husscene { width:92px; }
+        .husscene svg { width:92px; height:86px; }
+        .husscene .husnote { display:none; }
+      }
+      @media (max-width:400px) { .husscene { display:none; } }
       @media (prefers-reduced-motion: reduce) {
         .husscene .varme path, .husscene .vindu.pa { animation:none; opacity:.5; }
       }
@@ -3023,34 +3052,137 @@ if (customElements.get("ki-klima-pro-card")) {
 
 class KiKlimaProCardEditor extends HTMLElement {
   constructor() { super(); this.attachShadow({ mode: "open" }); }
+
   setConfig(config) {
-    this._config = Object.assign({ default_tab: "oversikt", remember_tab: true }, config || {});
+    this._config = Object.assign({ default_tab: "oversikt", remember_tab: true },
+      config || {});
     this._tegn();
   }
-  set hass(hass) { this._hass = hass; if (this._form) this._form.hass = hass; }
+
+  /* `set hass` fyres ved hvert tilstandsbytte i huset. Bygger vi editoren på nytt der,
+     byttes feltene ut mens man skriver i dem, og siste tegn går tapt — samme feil som i
+     hjemkortet. Her sendes hass bare videre. */
+  set hass(hass) {
+    this._hass = hass;
+    if (this._form) this._form.hass = hass;
+  }
+
+  _ut(ny) {
+    this._config = Object.assign({}, this._config, ny);
+    this.dispatchEvent(new CustomEvent("config-changed",
+      { detail: { config: this._config }, bubbles: true, composed: true }));
+    this._tegnFaner();
+  }
+
+  /* Rekkefølgen som faktisk gjelder: det som står i `faner:`, så resten bakerst.
+     Uten den ville en fane man ikke har rørt forsvunnet fra lista. */
+  _rekkefolge() {
+    const valgt = Array.isArray(this._config.faner) ? this._config.faner : [];
+    const kjent = valgt.filter((id) => FANER.some((f) => f.id === id));
+    const resten = FANER.map((f) => f.id).filter((id) => !kjent.includes(id));
+    return { kjent, alle: kjent.concat(resten) };
+  }
+
+  _flytt(id, d) {
+    const { alle } = this._rekkefolge();
+    const i = alle.indexOf(id), j = i + d;
+    if (i < 0 || j < 0 || j >= alle.length) return;
+    [alle[i], alle[j]] = [alle[j], alle[i]];
+    this._ut({ faner: alle });
+  }
+
+  _veksle(id) {
+    const { alle } = this._rekkefolge();
+    const av = new Set(this._config.skjulte_faner || []);
+    if (av.has(id)) av.delete(id); else av.add(id);
+    /* Vi lagrer BÅDE rekkefølgen og hvilke som er av, og skriver `faner:` som de
+       synlige i riktig rekkefølge. Da trenger kortet ikke kjenne til `skjulte_faner`. */
+    const synlige = alle.filter((x) => !av.has(x));
+    this._ut({ faner: synlige, skjulte_faner: [...av] });
+  }
+
   _tegn() {
-    if (!this._form) {
+    if (!this._skall) {
+      this._skall = document.createElement("div");
+      const stil = document.createElement("style");
+      stil.textContent = `
+        .liste { display:grid; gap:6px; margin:12px 0 4px; }
+        .rad { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 12px;
+          border-radius:14px; background:var(--secondary-background-color); }
+        .navn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+          white-space:nowrap; }
+        .rad.av .navn { opacity:.4; text-decoration:line-through; }
+        .ikn { border:0; background:none; color:var(--primary-text-color); cursor:pointer;
+          padding:4px; border-radius:50%; display:flex; --mdc-icon-size:20px; opacity:.75; }
+        .ikn:hover { opacity:1; background:rgba(128,128,128,.18); }
+        .ikn[disabled] { opacity:.25; cursor:default; }
+        h4 { margin:14px 0 2px; font-size:15px; }
+        .merk { font-size:13px; opacity:.65; line-height:1.5; margin:8px 0 0; }`;
+      this._skall.appendChild(stil);
+
       this._form = document.createElement("ha-form");
       this._form.schema = [
         { name: "title", selector: { text: {} } },
         { name: "default_tab", selector: { select: { mode: "dropdown", options:
           FANER.map((f) => ({ value: f.id, label: f.navn })) } } },
         { name: "remember_tab", selector: { boolean: {} } },
+        { name: "vis_fanenavn", selector: { boolean: {} } },
       ];
-      this._form.computeLabel = (s) => ({ title: "Tittel (valgfri)",
-        default_tab: "Standardfane", remember_tab: "Husk valgt fane" }[s.name] || s.name);
+      this._form.computeLabel = (x) => ({ title: "Tittel (valgfri)",
+        default_tab: "Standardfane", remember_tab: "Husk valgt fane",
+        vis_fanenavn: "Vis navn på fanene" }[x.name] || x.name);
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
-        this.dispatchEvent(new CustomEvent("config-changed", {
-          detail: { config: Object.assign({}, this._config, ev.detail.value) },
-          bubbles: true, composed: true }));
+        this._ut(ev.detail.value);
       });
-      this.shadowRoot.appendChild(this._form);
+      this._skall.appendChild(this._form);
+
+      const h = document.createElement("h4");
+      h.textContent = "Faner";
+      this._skall.appendChild(h);
+      this._fanerEl = document.createElement("div");
+      this._fanerEl.className = "liste";
+      this._skall.appendChild(this._fanerEl);
+
+      const merk = document.createElement("p");
+      merk.className = "merk";
+      merk.textContent = "Pilene endrer rekkefølgen. Øyet skjuler en fane. "
+        + "Innholdet i hver fane er bygget av kortet og kan ikke flyttes herfra.";
+      this._skall.appendChild(merk);
+
+      this.shadowRoot.appendChild(this._skall);
     }
-    this._form.data = this._config;
+    this._form.data = Object.assign({ vis_fanenavn: true }, this._config);
     if (this._hass) this._form.hass = this._hass;
+    this._tegnFaner();
+  }
+
+  _tegnFaner() {
+    if (!this._fanerEl) return;
+    const { alle } = this._rekkefolge();
+    const av = new Set(this._config.skjulte_faner || []);
+    this._fanerEl.innerHTML = alle.map((id, i) => {
+      const f = FANER.find((x) => x.id === id) || { navn: id, icon: "mdi:help" };
+      return `<div class="rad ${av.has(id) ? "av" : ""}">
+        <ha-icon icon="${f.icon}"></ha-icon>
+        <span class="navn">${f.navn}</span>
+        <button class="ikn" data-opp="${id}" ${i === 0 ? "disabled" : ""}
+          title="Flytt opp"><ha-icon icon="mdi:arrow-up"></ha-icon></button>
+        <button class="ikn" data-ned="${id}" ${i === alle.length - 1 ? "disabled" : ""}
+          title="Flytt ned"><ha-icon icon="mdi:arrow-down"></ha-icon></button>
+        <button class="ikn" data-av="${id}" title="${av.has(id) ? "Vis" : "Skjul"}">
+          <ha-icon icon="${av.has(id) ? "mdi:eye-off" : "mdi:eye"}"></ha-icon></button>
+      </div>`;
+    }).join("");
+    for (const el of this._fanerEl.querySelectorAll("[data-opp]"))
+      el.addEventListener("click", () => this._flytt(el.dataset.opp, -1));
+    for (const el of this._fanerEl.querySelectorAll("[data-ned]"))
+      el.addEventListener("click", () => this._flytt(el.dataset.ned, 1));
+    for (const el of this._fanerEl.querySelectorAll("[data-av]"))
+      el.addEventListener("click", () => this._veksle(el.dataset.av));
   }
 }
+
 
 customElements.define("ki-klima-pro-card-editor", KiKlimaProCardEditor);
 

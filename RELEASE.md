@@ -1,40 +1,50 @@
-# KI Klima/Strøm-kort 1.11.0
+# KI Klima/Strøm-kort 1.12.0
 
-## Tilstedeværelsen er flyttet inn i heroen
+## Borte-kortet ble for høyt på mobil
 
-Den lå som en egen blokk rett under heroen — to flater med samme tema, og en margin
-mellom dem som ikke hadde noen grunn til å være der.
+Hjemkomsten tok tre linjer. Nå står tid og resttid på samme rad med stripa under — to
+linjer i stedet for tre.
 
-Nå står den i heroen som en pille under forklaringen, med farge etter tilstand: grønn
-hjemme, gul ved kort tur, blå når huset står tomt.
+Huset **krymper** under 620 px i stedet for å forsvinne, til 92 px uten undertekst. Det
+er huset som viser tilstanden, så det skal være det siste som ryker. Under 400 px er det
+ingen plass igjen, og da går det ut.
 
-**I borte får hele flata en kjøligere farge.** Da ser du tilstanden før du leser noe, på
-samme måte som bassengkortet blir rødt når varmepumpa varmer.
+## «Hjemkomst 13:00» på en lørdag
 
-## Huset, med animasjon i begge tilstandene
+Det var en feil i integrasjonen, ikke i kortet: `hjemkomst_tid` ble publisert **alltid**,
+også når ingen hjemkomst var planlagt. Tallet var bare standardverdien i innstillingen, og
+kortet leste det som en plan.
 
-Samme tegning hjemme og borte — **forskjellen er farten og styrken, ikke to ulike
-bilder**. Hjemme lyser alle tre vinduene og varmen stiger tydelig i oransje på 3,4
-sekunder. Borte pulserer ett vindu langsomt, og varmen er svak og blå på 9 sekunder.
+Kortet krever nå `hjemkomst_aktiv` i tillegg. Retter du bare kortet, forsvinner linja
+uansett — men **KI Energi 2.26.0 fikser kilden**, og publiserer `hjemkomst_tid` bare når
+en hjemkomst faktisk er satt i gang. Innstillingen ligger nå i
+`hjemkomst_tid_innstilling` for den som vil vise den.
 
-Det leses da som en grad og ikke som to atskilte tilstander, og koden er én scene med
-parametere i stedet for to tegninger som må holdes i takt.
+## Fanene kan ordnes i UI
 
-Huset skjules under 560 px, der heroen trenger bredden til teksten.
+Editoren har fått en faneliste: piler for rekkefølge, øye for å skjule.
 
-## Hjemkomst er en stripe
+* **Rekkefølge** lagres som `faner: [energi, oversikt, ...]`
+* **Skjul** tar fanen ut av lista, og den er fortsatt synlig i editoren så du kan
+  hente den tilbake
+* **Vis navn på fanene** av gir rene ikonfaner
 
-«Varmer opp om 2 t 10 min» er det man lurer på, ikke klokkeslettet. Stripa fylles fra da
-bortemodus startet til hjemkomsten, så du ser hvor langt inn i ventetiden dere er.
+Rekkefølgen i editoren viser alltid alle åtte, også de du ikke har rørt — ellers ville en
+fane du aldri har flyttet forsvunnet fra lista.
 
-## Innstillingene er beholdt
+Ukjente navn i `faner:` hoppes over, og er ingen gyldige igjen, vises alle. En skrivefeil
+skal ikke gi et tomt kort.
 
-Blokka som ble flyttet inneholdt også bryterne for bortemodus og de fire
-bortetemperaturene. De står igjen under Oversikt, nå under overskriften «Bortemodus» —
-det er bare statusdelen som er flyttet opp.
+### Om kortene inne i fanene
+
+De kan ikke flyttes herfra. Innholdet i hver fane er bygget av kortet — det er ikke en
+liste med Lovelace-kort, men blokker koden setter sammen ut fra hva som finnes.
+
+Skal de kunne ordnes, må hver blokk få et navn og en rekkefølge i konfigurasjonen. Det er
+en større endring, og jeg vil heller gjøre den bevisst enn å halvveis stikke den inn her.
+Si fra hvis det er verdt det.
 
 ### Kontrollert
 
-Fire tilstander: hjemme (tre vinduer, varm flate), kort tur (samme hus, gul pille), borte
-(kjølig flate, ett vindu, hjemkomststripe på 87 %), og uten sensoren i det hele tatt, der
-heroen er som før.
+Fanerekkefølge opp og ned, skjul og vis igjen, `faner:` skrevet riktig ut, og kortet som
+følger rekkefølgen. Ukjente navn og tom liste faller tilbake til alle fanene.

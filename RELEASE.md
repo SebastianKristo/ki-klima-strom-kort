@@ -1,41 +1,32 @@
-# KI Klima/Strøm-kort 1.17.0
+# KI Klima/Strøm-kort 1.18.0
 
-## Sonegrafene virket ikke
+## Innstillingene er lagt i nedtrekk
 
-To feil, og begge ga samme symptom: «Ingen temperaturhistorikk ennå» selv når
-historikken fantes.
+To steder hadde lange lister med felt man sjelden rører, rett under det man faktisk ser
+etter.
 
-### Cachen hindret hentingen
+**Håndklevarmer → Dusjvinduer.** Tidslinja står framme; morgen- og kveldstidene, maks
+på-tid og effekt ligger under «Endre tider». Tidslinja er det man sjekker — de fire
+klokkeslettene er noe man setter én gang.
 
-`_hentHistorikk` sjekket cachen **før** den regnet ut hvilke entiteter den trengte:
+**Bereder → Prisstyring.** Prisstripa står framme; antall billige timer,
+legionellaintervall, frister, vindustider og de tre bryterne ligger under
+«Innstillinger».
 
-```js
-if (this._hist && naa - this._histTid < 120000) { this._tegnGrafer(); return; }
-```
+Begge er lukket som standard og husker stillingen, som de andre sammenleggbare
+seksjonene i kortet.
 
-Åpnet du en sone, ble dens sensorer lagt til i lista — men vi returnerte på den to
-minutter gamle cachen og hentet dem aldri. Sonegrafene sto derfor tomme til cachen gikk
-ut, og fylte seg gjerne aldri fordi noe annet varmet den opp igjen først.
-
-Nøkkelen regnes nå først, og cachen gjelder bare når den dekker **nøyaktig de samme**
-entitetene.
-
-### Bytte mellom Temperatur og Effekt slettet grafen
-
-Knappene kalte `_tegn()`, som bygger hele panelet på nytt — og da ble den ferdige grafen
-byttet ut med plassholderen igjen. Det så ut som om knappene ikke virket.
-
-Nå byttes bare den aktive fanen og grafen tegnes om, uten å røre resten av panelet.
+Blokkene over og under er urørt: status, legionella og Handling står som før.
 
 ### Kontrollert
 
-Nøkkelen regnes før cachesjekken, og cachen krever samme nøkkel. Simulert: samme
-entiteter gir cache, en nyåpnet sone gir henting — der den før ga cache. Fanebyttet
-kaller ikke lenger `_tegn()`.
+Håndklevarmeren: ett nedtrekk, lukket, med fire tidsfelt inni og null utenfor — og
+døgnplanen fortsatt synlig. Berederen: prisstripa utenfor nedtrekket, tre brytere inni og
+null utenfor, og Handling-blokka står igjen.
 
 ---
 
-# KI Klima/Strøm-kort 1.16.0
+# KI Klima/Strøm-kort 1.17.0
 
-Husanimasjonen går jevnt: bølgene spres over hele syklusen i stedet for det første
-sekundet. «Hvem styrer ovnene» sto to steder og er nå bare nederst i Oppsett.
+Sonegrafene virker: cachen hindret hentingen av nyåpnede soner, og fanebyttet mellom
+Temperatur og Effekt bygde hele panelet på nytt.

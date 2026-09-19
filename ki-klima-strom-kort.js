@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.17.0";
+const KI_PRO_VERSJON = "1.18.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -1375,16 +1375,17 @@ class KiKlimaProCard extends HTMLElement {
           { navn: "Håndklevarmer", spenn: [["input_datetime.ki_hanklevarmer_morgen_start", "input_datetime.ki_hanklevarmer_morgen_slutt", "ok", "Morgen"],
                                           ["input_datetime.ki_hanklevarmer_kveld_start", "input_datetime.ki_hanklevarmer_kveld_slutt", "ok", "Kveld"]] },
         ])}
-        <div class="undertittel">Morgen</div>
-        ${this._tidPar("Fra", "input_datetime.ki_hanklevarmer_morgen_start",
-                       "Til", "input_datetime.ki_hanklevarmer_morgen_slutt")}
-        <div class="undertittel" style="padding-top:6px">Kveld</div>
-        ${this._tidPar("Fra", "input_datetime.ki_hanklevarmer_kveld_start",
-                       "Til", "input_datetime.ki_hanklevarmer_kveld_slutt")}
-        <div class="undertittel" style="padding-top:8px">Sikkerhet</div>
-        ${this._stepperRad("input_number.ki_hanklevarmer_maks_pa_tid", "Slå av etter", 0, " min")}
-        ${this._stepperRad("input_number.ki_hanklevarmer_effekt_w", "Effekt når den er på", 0, " W")}
-        <div class="notat">Utenfor vinduene kan den slås på manuelt; da slås den av igjen etter maks på-tid. I rød effektsone utsettes starten noen minutter.</div>
+        ${this._sub("handkle-tider", "Endre tider", `
+          <div class="undertittel">Morgen</div>
+          ${this._tidPar("Fra", "input_datetime.ki_hanklevarmer_morgen_start",
+                         "Til", "input_datetime.ki_hanklevarmer_morgen_slutt")}
+          <div class="undertittel" style="padding-top:6px">Kveld</div>
+          ${this._tidPar("Fra", "input_datetime.ki_hanklevarmer_kveld_start",
+                         "Til", "input_datetime.ki_hanklevarmer_kveld_slutt")}
+          <div class="undertittel" style="padding-top:8px">Sikkerhet</div>
+          ${this._stepperRad("input_number.ki_hanklevarmer_maks_pa_tid", "Slå av etter", 0, " min")}
+          ${this._stepperRad("input_number.ki_hanklevarmer_effekt_w", "Effekt når den er på", 0, " W")}
+          <div class="notat">Utenfor vinduene kan den slås på manuelt; da slås den av igjen etter maks på-tid. I rød effektsone utsettes starten noen minutter.</div>`)}
       </div>`;
   }
 
@@ -1678,33 +1679,35 @@ class KiKlimaProCard extends HTMLElement {
           this._a("sensor.ki_vvb_billige_timer", "antall_kandidater", 0) > 24
             ? " Prisdata kommer i kvartersoppløsning, så flere oppføringer per time slås sammen."
             : ""}</div>
-        ${this._stepperRad("input_number.vvb_billigste_timer_dogn", "Antall billige timer", 0, " t")}
-        ${this._stepperRad("input_number.ki_vvb_intervall_dager", "Ønsket legionellaintervall", 0, " d")}
-        ${this._stepperRad("input_number.ki_vvb_maks_dager", "Hard frist", 0, " d")}
-        ${this._tidRad("input_datetime.ki_vvb_klar_innen", "Ferdig innen")}
-        ${this._tidRad("input_datetime.ki_vvb_vindu_start", "Vindu starter")}
-        <div class="rad">
-          <div class="radtekst"><div class="radnavn">Prisstyring</div>
-            <div class="radsub">Av = berederen står som den står</div></div>
-          <div class="bryter ${this._pa("input_boolean.ki_vvb_prisstyring") ? "on" : ""}"
-               data-handling="veksle" data-entity="input_boolean.ki_vvb_prisstyring"><span></span></div>
-        </div>
-        ${this._a("sensor.ki_vvb_billige_timer", "norgespris", false) ? `
-        <div class="rad rad-les"><div class="prikk p-ok"></div>
-          <div class="radtekst"><div class="radnavn">Norgespris aktiv</div>
-            <div class="radsub">Strømprisen er lik hele døgnet. Berederen legges i vinduet med billigste nettleie (natt/helg) — spotpris trengs ikke.</div></div></div>` : `
-        <div class="rad">
-          <div class="radtekst"><div class="radnavn">Følg spotpris</div>
-            <div class="radsub">${this._a("sensor.ki_vvb_billige_timer", "har_priser", false) ? "Velger de billigste enkelttimene fram til fristen" : "Ingen prisdata — velg spotprissensor under Konfigurer, ellers brukes vinduet"}</div></div>
-          <div class="bryter ${this._pa("input_boolean.ki_vvb_folg_spotpris") ? "on" : ""}"
-               data-handling="veksle" data-entity="input_boolean.ki_vvb_folg_spotpris"><span></span></div>
-        </div>`}
-        <div class="rad">
-          <div class="radtekst"><div class="radnavn">Alltid på</div>
-            <div class="radsub">Overstyrer automatikken helt</div></div>
-          <div class="bryter ${this._pa("input_boolean.ki_vvb_alltid_pa") ? "on" : ""}"
-               data-handling="veksle" data-entity="input_boolean.ki_vvb_alltid_pa"><span></span></div>
-        </div>
+        ${this._sub("vvb-innstillinger", "Innstillinger", `
+          ${this._stepperRad("input_number.vvb_billigste_timer_dogn", "Antall billige timer", 0, " t")}
+          ${this._stepperRad("input_number.ki_vvb_intervall_dager", "Ønsket legionellaintervall", 0, " d")}
+          ${this._stepperRad("input_number.ki_vvb_maks_dager", "Hard frist", 0, " d")}
+          ${this._tidRad("input_datetime.ki_vvb_klar_innen", "Ferdig innen")}
+          ${this._tidRad("input_datetime.ki_vvb_vindu_start", "Vindu starter")}
+          <div class="rad">
+            <div class="radtekst"><div class="radnavn">Prisstyring</div>
+              <div class="radsub">Av = berederen står som den står</div></div>
+            <div class="bryter ${this._pa("input_boolean.ki_vvb_prisstyring") ? "on" : ""}"
+                 data-handling="veksle" data-entity="input_boolean.ki_vvb_prisstyring"><span></span></div>
+          </div>
+          ${this._a("sensor.ki_vvb_billige_timer", "norgespris", false) ? `
+          <div class="rad rad-les"><div class="prikk p-ok"></div>
+            <div class="radtekst"><div class="radnavn">Norgespris aktiv</div>
+              <div class="radsub">Strømprisen er lik hele døgnet. Berederen legges i vinduet med billigste nettleie (natt/helg) — spotpris trengs ikke.</div></div></div>` : `
+          <div class="rad">
+            <div class="radtekst"><div class="radnavn">Følg spotpris</div>
+              <div class="radsub">${this._a("sensor.ki_vvb_billige_timer", "har_priser", false) ? "Velger de billigste enkelttimene fram til fristen" : "Ingen prisdata — velg spotprissensor under Konfigurer, ellers brukes vinduet"}</div></div>
+            <div class="bryter ${this._pa("input_boolean.ki_vvb_folg_spotpris") ? "on" : ""}"
+                 data-handling="veksle" data-entity="input_boolean.ki_vvb_folg_spotpris"><span></span></div>
+          </div>`}
+          <div class="rad">
+            <div class="radtekst"><div class="radnavn">Alltid på</div>
+              <div class="radsub">Overstyrer automatikken helt</div></div>
+            <div class="bryter ${this._pa("input_boolean.ki_vvb_alltid_pa") ? "on" : ""}"
+                 data-handling="veksle" data-entity="input_boolean.ki_vvb_alltid_pa"><span></span></div>
+          </div>
+`)}
       </div>
       <div class="blokk">
         <div class="hode"><span>Handling${this._hj("vvb_handling")}</span></div>

@@ -1,40 +1,27 @@
-# KI Klima/Strøm-kort 1.21.0
+# KI Klima/Strøm-kort 1.22.0
 
-## Fanen heter Bad
+## Hjemkomsten telles ned mot tidspunktet, ikke mot klokkeslettet
 
-«Håndklevarmer» dekket ikke lenger innholdet: der ligger nå håndklevarmeren,
-fuktstyringen, baderomsvifta og dusjvinduene. Ikonet er byttet til dusjen.
+Søndag kl. 13.00, varselet besvart med ja — og kortet sa «Hjemkomst om 23 t 45 min».
 
-## Baderomsvifta har egen blokk
+Kortet regnet nedtellingen av `hjemkomst_tid`, som er klokkeslettet i innstillingen, og la
+på et døgn så snart det var passert. Men integrasjonen setter noe annet: svarer du ja etter at
+innstilt tid er passert, blir planen «om 30 minutter». På hytta planlegges ankomsten til og med
+på en annen dag, og det kan et klokkeslett aldri fortelle.
 
-Den lå som en underoverskrift inne i «Etter dusj». En underoverskrift leses som «hører
-til det over», og vifta er et eget valg man slår av og på for seg.
+Nå leses hele tidspunktet, i denne rekkefølgen:
 
-Fuktgrensen står fortsatt bare ett sted — under «Etter dusj» — og notatet i vifteblokka
-sier hvor den er.
+1. `hjemkomst_planlagt` på `sensor.ki_tilstedevaerelse` (krever KI Energi 2.30.0)
+2. `datetime.ki_hjemkomst_planlagt` direkte, for eldre integrasjon
+3. klokkeslettet, som før — men **uten** døgnpåslaget
 
-## Lukket viser sammendraget, åpent viser alt
-
-Tre blokker har nå samme form: det man sjekker står framme, det man stiller på ligger i
-nedtrekket.
-
-| Blokk | Lukket | Åpent |
-| --- | --- | --- |
-| Etter dusj | Fuktprosent nå og den blå stripa mot grensen | Bryter, grense, varighet, timer |
-| Baderomsvifte | «lufter, 13 min igjen» eller «klar» | Bryter og minutter |
-| Dusjvinduer | Tidene i overskriften og tidslinja | Morgen, kveld, sikkerhet |
-
-Stripa og tidslinja er nettopp det man åpner kortet for å se; klokkeslettene og
-grensene setter man én gang.
+Er tidspunktet passert, står det «når som helst» og stripa er full, i stedet for at nedtellingen
+starter på nytt mot i morgen. Er hjemkomsten en annen dag, står ukedagen foran klokkeslettet
+(«Hjemkomst fre 17:00»), slik at hytteankomst ikke ser ut som i dag.
 
 ### Kontrollert
 
-Fanen heter Bad. Fem blokker i riktig rekkefølge. «Etter dusj» viser 52 % og stripa når
-den er lukket, med null brytere utenfor nedtrekket. Dusjvinduer viser tidslinja med null
-tidsfelt utenfor.
-
----
-
-# KI Klima/Strøm-kort 1.20.0
-
-Baderomsvifta lagt inn, den gang som underoverskrift i «Etter dusj».
+`node --check` på hele fila. Tre kilder til målet, med fallback i rekkefølge; ugyldig dato i
+noen av dem hoppes over i stedet for å gi «NaN». Nedtellingen vises bare når hjemkomst faktisk er
+aktiv, som før — kravet om `hjemkomst_tid` er tatt bort, siden tidspunktet nå kan komme fra
+entiteten alene.

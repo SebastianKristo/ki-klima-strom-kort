@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.21.0";
+const KI_PRO_VERSJON = "1.22.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -592,25 +592,52 @@ class KiKlimaProCard extends HTMLElement {
        «Hjemkomst 13:00» på en lørdag da ingen hadde bedt om oppvarming.
        Krever KI Energi 2.26.0; på eldre er attributtet alltid satt, og da faller vi
        tilbake til å stole på `hjemkomst_aktiv` som nå er det eneste kravet. */
-    if (borte && tat.hjemkomst_aktiv && tat.hjemkomst_tid) {
+    if (borte && tat.hjemkomst_aktiv) {
       const min = Number(tat.minutter_borte);
-      const [t, m] = String(tat.hjemkomst_tid).split(":").map(Number);
       const naa = new Date();
-      const maal = new Date(naa); maal.setHours(t || 0, m || 0, 0, 0);
-      if (maal < naa) maal.setDate(maal.getDate() + 1);
-      const igjen = Math.max(0, Math.round((maal - naa) / 60000));
-      const totalt = isFinite(min) ? min + igjen : igjen;
-      const pct = totalt > 0 ? Math.max(0, Math.min(100, (min / totalt) * 100)) : 0;
-      const lesbar = igjen >= 60 ? `${Math.floor(igjen / 60)} t ${igjen % 60} min`
-        : `${igjen} min`;
-      hjemStripe = `
-        <div class="hjemkomst">
-          <div class="hkrad">
-            <span>Hjemkomst ${esc(tat.hjemkomst_tid)}</span>
-            <span class="hkigjen">om ${esc(lesbar)}</span>
-          </div>
-          <div class="hkspor"><i style="width:${pct.toFixed(0)}%"></i></div>
-        </div>`;
+
+      /* Målet er et TIDSPUNKT, ikke et klokkeslett.
+       *
+       * Før regnet kortet nedtellingen av `hjemkomst_tid` — klokkeslettet i
+       * innstillingen — og la på et døgn så snart det var passert. Svarte han ja kl.
+       * 13.00 en søndag da innstilt tid alt var passert, satte integrasjonen planen til
+       * «om 30 minutter», mens kortet viste «om 23 t 45 min». En hytte planlegges i
+       * tillegg på en annen DAG, og det kan et klokkeslett aldri fortelle.
+       *
+       * KI Energi 2.30.0 sender hele tidspunktet i `hjemkomst_planlagt`. Er
+       * integrasjonen eldre, leser vi datetime-entiteten direkte, og først helt til
+       * slutt faller vi tilbake på klokkeslettet — da UTEN døgnpåslag: en hjemkomst som
+       * er passert er passert, og skal ikke se ut som at den er i morgen.
+       */
+      const tid = (v) => { const d = v ? new Date(v) : null; return d && !isNaN(d.getTime()) ? d : null; };
+      const planSt = this._st("input_datetime.ki_hjemkomst_planlagt");
+      let maal = tid(tat.hjemkomst_planlagt)
+        || (planSt && !["unknown", "unavailable", ""].includes(planSt.state) ? tid(planSt.state) : null);
+      if (!maal && tat.hjemkomst_tid) {
+        const [t, m] = String(tat.hjemkomst_tid).split(":").map(Number);
+        maal = new Date(naa); maal.setHours(t || 0, m || 0, 0, 0);
+      }
+      if (maal) {
+        const igjen = Math.round((maal - naa) / 60000);
+        const totalt = isFinite(min) ? min + Math.max(0, igjen) : Math.max(0, igjen);
+        const pct = igjen <= 0 ? 100
+          : (totalt > 0 ? Math.max(0, Math.min(100, (min / totalt) * 100)) : 0);
+        const lesbar = igjen >= 60 ? `${Math.floor(igjen / 60)} t ${igjen % 60} min`
+          : `${igjen} min`;
+        const kl = maal.toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" });
+        /* Er hjemkomsten en annen dag enn i dag, står dagen foran klokkeslettet —
+           ellers ville «Hjemkomst 17:00» på hytta sett ut som i dag. */
+        const iDag = maal.toDateString() === naa.toDateString();
+        const dag = iDag ? "" : maal.toLocaleDateString("nb-NO", { weekday: "short" }) + " ";
+        hjemStripe = `
+          <div class="hjemkomst">
+            <div class="hkrad">
+              <span>Hjemkomst ${esc(dag + kl)}</span>
+              <span class="hkigjen">${igjen > 0 ? `om ${esc(lesbar)}` : "når som helst"}</span>
+            </div>
+            <div class="hkspor"><i style="width:${pct.toFixed(0)}%"></i></div>
+          </div>`;
+      }
     }
 
     /* Huset og ringen deler plass i stedet for å stables.

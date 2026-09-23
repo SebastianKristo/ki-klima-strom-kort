@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.22.0";
+const KI_PRO_VERSJON = "1.23.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -167,6 +167,8 @@ class KiKlimaProCard extends HTMLElement {
     this._config = Object.assign({ title: "", default_tab: "oversikt", remember_tab: true }, config || {});
     this._fane = this._lesFane() || this._config.default_tab;
     this._bygd = false;
+    // Ny bygging må også gi ny tegning, selv om ingen sensor har endret seg imens.
+    this._sisteStates = null;
     if (this.shadowRoot) this.shadowRoot.innerHTML = "";
   }
 
@@ -270,10 +272,22 @@ class KiKlimaProCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._bygd) this._bygg();
-    let sig = this._fane + "|" + (this._underfane || "") + "|";
-    for (const id of [...this._fulgt, ...this._personEntiteter()]) sig += ((hass.states[mapId(id)] || {}).state || "-") + ",";
-    if (sig !== this._sig) {
-      this._sig = sig;
+    /* Sammenligner tilstandsobjektene på referanse, ikke tilstandsteksten. Home
+       Assistant lager et nytt objekt når en attributt endrer seg, også når selve
+       tilstanden står. Før så kortet bare på tilstanden – og sensor.ki_laster, prognosen
+       og tilstedeværelsen bærer nesten alt i attributtene, så kortet sto med gamle
+       tall til noe annet tilfeldigvis endret seg. */
+    const forrige = this._sisteStates || {};
+    const naa = {};
+    let endret = this._sisteFane !== this._fane + "|" + (this._underfane || "");
+    for (const id of [...this._fulgt, ...this._personEntiteter()]) {
+      const mid = mapId(id);
+      naa[mid] = hass.states[mid];
+      if (naa[mid] !== forrige[mid]) endret = true;
+    }
+    if (endret) {
+      this._sisteStates = naa;
+      this._sisteFane = this._fane + "|" + (this._underfane || "");
       // Står markøren i et inputfelt (klokkeslett), venter vi med å tegne på nytt til feltet
       // er forlatt — ellers lukkes velgeren hver gang en sensor oppdateres.
       const aktiv = this._rot && this._rot.activeElement;
@@ -414,6 +428,11 @@ class KiKlimaProCard extends HTMLElement {
       </div></ha-card>`;
 
     this._rot = this.shadowRoot;
+    /* Lytterne settes på skyggeroten, som overlever en ny bygging. Før ble de lagt på
+       for hver bygging – og kortet bygges på nytt ved hver endring i editoren – så etter
+       tre tastetrykk lå det fire klikklyttere der, og ett trykk slo bryteren fire ganger. */
+    if (this._lyttereSatt) { this._bygd = true; return; }
+    this._lyttereSatt = true;
     this._rot.addEventListener("click", (e) => this._klikk(e));
     // Hold inne (450 ms) på hva som helst med en entitet → åpne entiteten (mer-info)
     this._rot.addEventListener("pointerdown", (e) => {
@@ -422,7 +441,8 @@ class KiKlimaProCard extends HTMLElement {
       clearTimeout(this._holdTimer);
       this._holdTimer = setTimeout(() => {
         this._holdt = true;
-        if (navigator.vibrate) navigator.vibrate(12);
+        try { window.dispatchEvent(new CustomEvent("haptic", { detail: "medium", bubbles: true, composed: true })); } catch (e) { /* eldre nettleser */ }
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) { /* blokkert */ } }
         this.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId: mapId(el.dataset.entity) }, bubbles: true, composed: true }));
       }, 450);
     });
@@ -2422,6 +2442,11 @@ class KiKlimaProCard extends HTMLElement {
       return;
     }
     if (this._hist && this._histNokkel !== nokkel) this._hist = null;
+    /* Ett kall om gangen. _tegn kan kjøre flere ganger i sekundet når sensorene
+       melder, og hvert kall her ville sendt sin egen forespørsel etter tolv timer
+       historikk – de kom tilbake i tilfeldig rekkefølge og skrev over hverandre. */
+    if (this._henter) return;
+    this._henter = true;
     try {
       const start = new Date(naa - 12 * 3600 * 1000).toISOString();
       const res = await this._hass.callWS({
@@ -2439,6 +2464,8 @@ class KiKlimaProCard extends HTMLElement {
     } catch (e) {
       const el = this._rot.querySelector(".graf");
       if (el) el.innerHTML = `<div class="grafvent">Fant ikke historikk (${esc(e.message || e)})</div>`;
+    } finally {
+      this._henter = false;
     }
   }
 

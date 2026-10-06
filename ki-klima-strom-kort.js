@@ -21,7 +21,7 @@
  * Config:  type: custom:ki-klima-pro-card
  */
 
-const KI_PRO_VERSJON = "1.23.0";
+const KI_PRO_VERSJON = "1.24.0";
 
 console.info(
   `%c KI-KLIMA-PRO-CARD %c ${KI_PRO_VERSJON} `,
@@ -387,6 +387,10 @@ class KiKlimaProCard extends HTMLElement {
       "input_boolean.ki_tillat_dyrere_trinn",
       "input_boolean.ki_elbil_natt", "input_boolean.ki_auto_soveromsmodus", "input_number.ki_elbil_effekt_kw", "input_datetime.ki_elbil_fra", "input_datetime.ki_elbil_til",
       "input_boolean.ki_vindu_stopp", "input_number.ki_vindu_forsinkelse_min", "input_number.ki_vindu_temp",
+      // 2.33.0: frostvakt, bereder i bortemodus, lading om natten, forvarmingstak
+      "input_boolean.ki_frostvakt", "binary_sensor.ki_frostfare", "input_number.ki_frost_ute_grense",
+      "input_number.ki_frost_paslag", "input_number.ki_frost_alarm_temp", "input_boolean.ki_vvb_borte_sparing",
+      "input_number.ki_vvb_klar_for_ankomst_timer", "input_boolean.ki_lading_kun_natt", "input_number.ki_forvarming_maks_timer",
       "input_boolean.ki_helg_spor_torsdag", "input_boolean.ki_helg_spor_fredag",
       "input_boolean.ki_varsel_effekt", "input_boolean.ki_varsel_helg", "input_boolean.ki_varsel_hjemkomst",
       "input_boolean.ki_varsel_sommer", "input_boolean.ki_varsel_vvb", "input_boolean.ki_varsel_hanklevarmer",
@@ -757,6 +761,8 @@ class KiKlimaProCard extends HTMLElement {
           ${hank ? `<span><ha-icon icon="mdi:radiator"></ha-icon>Håndklevarmer ${hank === "pa" ? "på" : "av"}</span>` : ""}
           ${gard && gard.state !== "ikke_konfigurert" ? `<span><ha-icon icon="mdi:curtains"></ha-icon>Gardiner ${esc(gard.state === "av" ? "manuelt" : gard.state)}</span>` : ""}
           ${moduser.length ? `<span><ha-icon icon="mdi:tune-variant"></ha-icon>${moduser.join(" · ")}</span>` : ""}
+          ${this._pa("binary_sensor.ki_frostfare") ? `<span class="badge b-feil"><ha-icon icon="mdi:snowflake-alert"></ha-icon>Frostfare: ${esc((this._a("binary_sensor.ki_frostfare", "rom", []) || []).join(", "))}</span>`
+            : Number(this._a("binary_sensor.ki_frostfare", "paslag", 0)) > 0 ? `<span><ha-icon icon="mdi:snowflake-thermometer"></ha-icon>Frostvakt +${nf(Number(this._a("binary_sensor.ki_frostfare", "paslag", 0)), 0)}°</span>` : ""}
         </div>
         ${senket.length ? `<div class="fakta" style="padding-top:2px">${senket.map((l) => `<span class="badge b-advarsel">${esc(l.navn)} ${l.settpunkt != null ? nf(l.settpunkt, 1) + "°" : ""}</span>`).join("")}</div>` : ""}
       </div>`;
@@ -1136,6 +1142,9 @@ class KiKlimaProCard extends HTMLElement {
           ${N("mal_tapt", false) ? '<span class="badge b-advarsel">mål passert</span>' : ""}
           ${N("tariff_ukjent", false) ? '<span class="badge b-feil">tariff ukjent</span>' : ""}
           ${N("tillat_dyrere_trinn", false) ? '<span class="badge b-advarsel">dyrere trinn tillatt</span>' : ""}
+          ${N("modell", "elvia") === "topp3_timer" ? '<span class="badge b-noytral">tre høyeste timer</span>' : ""}
+          ${N("i_hoylast", true) === false ? '<span class="badge b-ok">utenfor høylast</span>' : ""}
+          ${N("hoylast", "") && N("hoylast", "") !== "hele døgnet, hele året" ? `<span>høylast ${esc(N("hoylast", ""))}</span>` : ""}
         </div>
         ${this._sub("energi:topp3", "Topp tre denne måneden", `
           ${this._dognGraf()}
@@ -1938,6 +1947,12 @@ class KiKlimaProCard extends HTMLElement {
                data-handling="bryter" data-entity="input_boolean.ki_lading_automatikk"><span></span></div>
         </div>
         <div class="rad">
+          <div class="radtekst"><div class="radnavn">Bare om natten</div>
+            <div class="radsub">Lader i elbilvinduet, med mindre batteriet er under startgrensen${a("faser", null) ? ` · ${a("faser")} fase${a("faser") == 3 ? "r" : ""}, ${a("volt", 230)} V` : ""}</div></div>
+          <div class="bryter ${this._pa("input_boolean.ki_lading_kun_natt") ? "on" : ""}"
+               data-handling="veksle" data-entity="input_boolean.ki_lading_kun_natt"><span></span></div>
+        </div>
+        <div class="rad">
           <div class="radtekst"><div class="radnavn">Minste tid mellom endringer</div>
             <div class="radsub">Hindrer at den justerer fram og tilbake</div></div>
           <input class="tallfelt" type="number" min="1" max="30" step="1"
@@ -2044,11 +2059,12 @@ class KiKlimaProCard extends HTMLElement {
           <div class="rad rad-les">
             <div class="radtekst"><div class="radnavn">${esc(navn)}</div>
               <div class="radsub">${v.malinger || 0} målinger${v.malinger < 20 ? " — lærer fortsatt" : ""}</div></div>
-            <div class="radverdi">${v.tau_timer ? nf(v.tau_timer, 1) + " t" : "–"} · ${v.grader_per_time ? nf(v.grader_per_time, 1) + " °C/t" : "–"}</div>
+            <div class="radverdi">${v.tau_timer ? nf(v.tau_timer, 1) + " t" : "–"} · ${v.grader_per_time ? nf(v.grader_per_time, 1) + " °C/t" : "–"}${v.oppvarmingsevne ? " · evne " + nf(v.oppvarmingsevne, 1) : ""}</div>
           </div>`).join("")}
-        <div class="notat">Tidskonstanten er hvor lenge rommet holder på overtemperaturen.
-          Lang tidskonstant betyr at nattsenking sjelden lønner seg, fordi gjenoppvarmingen
-          skjer til dyrere dagtariff.</div>
+        <div class="notat">Tidskonstanten er hvor lenge rommet holder på overtemperaturen; evnen er
+          hvor fort ovnen varmer ved null forskjell til ute. Sammen gir de forvarmingstiden i
+          dagens vær. Et svært tregt rom rekker ikke å kjøle seg ned på en natt, og da lønner
+          nattsenking seg ikke.</div>
       </div>` : ""}
       <div class="blokk">
         <div class="hode"><span>Beslutningslogg</span><span class="sub">${logg.length} oppføringer</span></div>
@@ -2082,6 +2098,7 @@ class KiKlimaProCard extends HTMLElement {
         ["input_boolean.ki_prediktiv_forvarming", "Prediktiv forvarming", "Starter ut fra målt oppvarmingsrate"],
         ["input_boolean.ki_solkompensasjon", "Solkompensasjon", "Trekker fra solvarme i stua"],
         ["input_boolean.ki_vindu_stopp", "Vindu åpent stopper varme", "Sonen settes ned når et vindu/dør står åpent"],
+        ["input_boolean.ki_frostvakt", "Frostvakt", "Løfter bortetemperaturene i kulda; et rom under alarmgrensen varmes uansett og varsles"],
         ["input_boolean.ki_nattsenk_aktiv", "Nattsenking", "Av = ingen soner senkes om natten"],
         ["input_boolean.ki_nattsenk_okonomi", "Økonomisk nattsenking", "Senker bare når sparingen slår gjenoppvarmingen"],
         ...(this._har("gardiner") ? [["input_boolean.ki_styr_gardiner", "Styr gardiner", "Se egen blokk lenger ned"]] : []),
@@ -2096,6 +2113,7 @@ class KiKlimaProCard extends HTMLElement {
         ...(this._har("vvb_bryter") ? [["input_boolean.ki_vvb_prisstyring", "VVB prisstyring", "Velger de billigste timene"],
                                       ["input_boolean.ki_vvb_alltid_pa", "VVB alltid på", "Kobler ut prisstyringen"]] : []),
         ["input_boolean.ki_vvb_legionella_aktiv", "Legionellasikring", "Kan ikke blokkeres av sparing når den er på"],
+        ...(this._har("vvb_bryter") ? [["input_boolean.ki_vvb_borte_sparing", this._l("VVB hviler når alle er borte"), "Varmer før ankomst og når legionellafristen nærmer seg"]] : []),
         ...(this._har("hanklevarmer") ? [["input_boolean.ki_styr_hanklevarmer", "Styr håndklevarmer", "Dusjvinduer og sikkerhetsavstenging"]] : []),
       ]],
     ];
@@ -2292,9 +2310,21 @@ class KiKlimaProCard extends HTMLElement {
         ${this._stepperRad("input_number.ki_sommer_slutt_maned", "Sommer til måned", 0, "")}
         ${this._stepperRad("input_number.ki_sommer_ute_grense", "Sommer når ute over", 0, " °C")}
         ${this._stepperRad("input_number.ki_helg_auto_timer", "Helg auto etter", 0, " t borte")}
-        <div class="notat">Forvarming bruker motorens målte oppvarmingsrate per sone. Sonene
-          starter så sent som mulig innenfor budsjettet, og gulvvarme aldri senere enn 45
-          minutter før fristen.</div>
+        ${this._stepperRad("input_number.ki_forvarming_maks_timer", "Forvarming maks", 0, " t")}
+        <div class="notat">Forvarmingen regnes med lært oppvarmingsevne og dagens utetemperatur:
+          samme rom trenger lenger tid i −20 enn i +5. Sonene starter så sent som mulig innenfor
+          budsjettet, gulvvarme aldri senere enn 45 minutter før fristen, og aldri tidligere enn
+          taket over.</div>
+      </div>
+
+      <div class="blokk">
+        <div class="hode"><span>Frostvakt</span><span class="sub">${esc(this._a("binary_sensor.ki_frostfare", "forklaring", ""))}</span></div>
+        ${this._stepperRad("input_number.ki_frost_ute_grense", "Påslag når ute under", 0, " °C")}
+        ${this._stepperRad("input_number.ki_frost_paslag", "Påslag på bortetemperaturene", 1, " °C")}
+        ${this._stepperRad("input_number.ki_frost_alarm_temp", "Alarm når et rom er under", 1, " °C")}
+        ${this._har("vvb_bryter") ? this._stepperRad("input_number.ki_vvb_klar_for_ankomst_timer", this._l("Varmtvann klart før hjemkomst"), 1, " t") : ""}
+        <div class="notat">Ti grader under utegrensen dobles påslaget. Et rom under alarmgrensen får
+          prioritet 1 og varmes til grensen + 5 °C uansett modus og budsjett.</div>
       </div>
 
       <div class="blokk">
